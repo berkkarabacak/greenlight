@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#F7F8FA" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0B0D10" media="(prefers-color-scheme: dark)" />
+<meta name="description" content="Compare two microphones (or cameras) side by side — speak once, hear both, and get a plain-English verdict on which performs better. Runs entirely in your browser." />
+<title>Compare devices — GreenLight</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%234F46E5'/%3E%3Cpath d='M11 12h10M11 16h10M11 20h6' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #F7F8FA; --surface: #FFFFFF; --surface-2: #F2F4F7; --border: #E4E7EC;
+    --text: #1A2027; --text-2: #5B6470; --muted: #8A929E;
+    --accent: #4F46E5;
+    --success: #12855F; --success-strong: #10B981; --success-bg: #E7F6EF;
+    --warning: #B7791F; --warning-strong: #F59E0B; --warning-bg: #FBF3E2;
+    --error: #C0362C; --error-strong: #EF4444; --error-bg: #FBEBE9;
+    --muted-dot: #B4BAC3; --meter-track: #E9ECF1;
+    --a-color: #4F46E5; --a-bg: #ECEBFB;
+    --b-color: #0D9488; --b-bg: #E2F5F1;
+    --shadow: 0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04);
+    --radius-lg: 16px; --radius-md: 10px;
+    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' fill='none' stroke='%238A929E' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0B0D10; --surface: #16191E; --surface-2: #1D2127; --border: #232830;
+      --text: #F2F4F7; --text-2: #9BA3AF; --muted: #6B7280;
+      --accent: #6366F1;
+      --success: #22C55E; --success-strong: #4ADE80; --success-bg: #14361F;
+      --warning: #F59E0B; --warning-strong: #FBBF24; --warning-bg: #3A2A0A;
+      --error: #EF4444; --error-strong: #F87171; --error-bg: #3A1414;
+      --muted-dot: #3C424B; --meter-track: #262B33;
+      --a-color: #818CF8; --a-bg: #1E2140;
+      --b-color: #2DD4BF; --b-bg: #10312E;
+      --shadow: 0 8px 24px rgba(0,0,0,0.40);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    min-height: 100vh; min-height: 100dvh; max-width: 1000px; margin: 0 auto;
+    padding: max(3vh, 16px) 20px calc(18px + env(safe-area-inset-bottom));
+    padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right));
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  /* Header */
+  .cmp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .cmp-title h1 { margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+  .cmp-sub { margin: 4px 0 0; font-size: 14px; color: var(--text-2); max-width: 46ch; }
+  .cmp-head-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .mode-switch { display: inline-flex; gap: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .mode-tab {
+    padding: 7px 16px; font: inherit; font-size: 13px; font-weight: 600;
+    color: var(--text-2); background: transparent; border: none; border-radius: 999px; cursor: pointer;
+    transition: background-color .15s, color .15s;
+  }
+  .mode-tab[data-active="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+  /* Verdict banner (reused) */
+  .verdict {
+    position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 16px 20px 16px 22px; overflow: hidden; box-shadow: var(--shadow);
+    transition: background-color .2s, border-color .2s;
+  }
+  .verdict::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--vc, var(--muted-dot)); transition: background-color .2s; }
+  .verdict[data-state="checking"] { --vc: var(--accent); }
+  .verdict[data-state="needs-input"] { --vc: var(--accent); }
+  .verdict[data-state="good"] { --vc: var(--success); background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 24%, var(--border)); }
+  .verdict[data-state="tie"] { --vc: var(--warning); background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 24%, var(--border)); }
+  .verdict[data-state="problem"] { --vc: var(--warning); background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 24%, var(--border)); }
+  .verdict[data-state="neutral"] { --vc: var(--muted-dot); }
+  .verdict-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .verdict-dot { flex: none; width: 13px; height: 13px; border-radius: 999px; background: var(--vc, var(--muted-dot)); box-shadow: 0 0 0 5px color-mix(in srgb, var(--vc, var(--muted-dot)) 16%, transparent); transition: background-color .2s, box-shadow .2s; }
+  .verdict[data-state="checking"] .verdict-dot, .verdict[data-state="needs-input"] .verdict-dot { animation: pulse 1.3s ease-in-out infinite; }
+  .verdict-title { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  .verdict-sub { margin: 3px 0 0; font-size: 14px; color: var(--text-2); }
+  .privacy-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--success); background: var(--success-bg); border: 1px solid color-mix(in srgb, var(--success) 26%, transparent); border-radius: 999px; }
+  .privacy-pill svg { width: 12px; height: 12px; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 16px; }
+  .card-h { font-size: 15px; font-weight: 600; }
+
+  /* Device picker */
+  .picker-grid { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+  .picker-col { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .picker-col-head { display: flex; align-items: center; gap: 8px; }
+  .ab-chip { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; }
+  .ab-a { background: var(--a-color); }
+  .ab-b { background: var(--b-color); }
+  .ab-label { font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .device-select {
+    width: 100%; appearance: none; -webkit-appearance: none;
+    padding: 9px 34px 9px 12px; font: inherit; font-size: 13px; color: var(--text);
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer;
+    background-image: var(--caret); background-repeat: no-repeat; background-position: right 12px center; text-overflow: ellipsis;
+  }
+  .device-select:disabled { opacity: .55; cursor: default; }
+  .swap-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); cursor: pointer; transition: background-color .15s, transform .1s; }
+  .swap-btn:hover { background: var(--border); color: var(--text); }
+  .swap-btn:active { transform: scale(.94) rotate(180deg); }
+  .swap-btn svg { width: 18px; height: 18px; }
+  .picker-help { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+  .notice { margin: 4px 0 0; padding: 12px 14px; font-size: 14px; border-radius: var(--radius-md); }
+  .notice.warn { color: var(--warning); background: var(--warning-bg); border: 1px solid color-mix(in srgb, var(--warning) 26%, transparent); }
+
+  /* Live compare panel */
+  .compare-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .calib-btn, .ghost-btn {
+    padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; border-radius: var(--radius-md); cursor: pointer;
+    color: var(--text); background: var(--surface-2); border: 1px solid var(--border); transition: background-color .15s, transform .1s;
+  }
+  .calib-btn:hover, .ghost-btn:hover { background: var(--border); }
+  .calib-btn:active { transform: scale(.98); }
+  .calib-btn.calibrating { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); pointer-events: none; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 18px; }
+  .cmp-divider { background: var(--border); }
+  .cmp-col { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .cmp-col-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .dev-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmp-col.errored .meter, .cmp-col.errored .metrics, .cmp-col.errored .spec-wrap { opacity: .4; }
+  .col-error { display: none; font-size: 13px; color: var(--error); font-weight: 500; }
+  .cmp-col.errored .col-error { display: block; }
+
+  .meter-wrap { position: relative; }
+  .meter { display: flex; align-items: center; gap: 3px; width: 100%; height: 44px; }
+  .bar { flex: 1; height: 22%; border-radius: 3px; background: var(--meter-track); transition: background-color .06s linear, height .08s ease-out; }
+  .cmp-col[data-side="a"] .bar.lit { background: var(--a-color); height: 62%; }
+  .cmp-col[data-side="b"] .bar.lit { background: var(--b-color); height: 62%; }
+  .bar.lit.hot { background: var(--warning-strong) !important; height: 80%; }
+  .arm-btn { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 7px 14px; font: inherit; font-size: 12px; font-weight: 600; color: #fff; background: var(--accent); border: none; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .app.needs-gesture .arm-btn { display: inline-flex; }
+  .app.needs-gesture .meter { opacity: .3; }
+
+  .spec-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .spectrum { width: 100%; height: 34px; display: block; border-radius: 6px; background: var(--surface-2); }
+  .spec-cap { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+
+  .metrics { display: flex; flex-direction: column; }
+  .mrow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); }
+  .mrow:first-child { border-top: none; }
+  .mlabel { font-size: 13px; color: var(--text-2); }
+  .mval { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  .mval.clip { color: var(--error); }
+  .mval.ok { color: var(--success); }
+  .winchip { display: none; align-items: center; gap: 3px; padding: 2px 8px; font-size: 11px; font-weight: 700; border-radius: 999px; color: var(--success); background: var(--success-bg); }
+  .winchip.show { display: inline-flex; }
+  .winchip svg { width: 10px; height: 10px; }
+  .compare-note { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
+
+  /* Listen test */
+  .listen-head { margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .rec-big { display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; font: inherit; font-size: 15px; font-weight: 600; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; cursor: pointer; transition: background-color .15s, border-color .15s, transform .1s; }
+  .rec-big:hover { background: var(--border); }
+  .rec-big:active { transform: scale(.98); }
+  .rec-big:disabled { opacity: .5; cursor: default; }
+  .rec-ico { width: 13px; height: 13px; border-radius: 999px; background: var(--error-strong); transition: border-radius .15s; }
+  .rec-big.recording { color: var(--error); border-color: color-mix(in srgb, var(--error) 40%, var(--border)); }
+  .rec-big.recording .rec-ico { border-radius: 2px; animation: pulse 1s ease-in-out infinite; }
+  .rec-center { display: flex; justify-content: center; padding: 10px 0; }
+
+  .ab-player { display: none; flex-direction: column; gap: 14px; }
+  .ab-player.show { display: flex; }
+  .ab-tabs { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .ab-tab { flex: 1; padding: 9px 8px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-2); background: transparent; border: none; border-radius: 999px; cursor: pointer; transition: background-color .15s, color .15s; }
+  .ab-tab[data-active="true"][data-side="a"] { background: var(--a-color); color: #fff; }
+  .ab-tab[data-active="true"][data-side="b"] { background: var(--b-color); color: #fff; }
+  .transport { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .tp-btn { display: inline-flex; align-items: center; justify-content: center; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); cursor: pointer; border-radius: 999px; transition: background-color .15s, transform .1s; }
+  .tp-btn:hover { background: var(--border); }
+  .tp-btn:active { transform: scale(.94); }
+  .tp-restart { width: 40px; height: 40px; } .tp-restart svg { width: 18px; height: 18px; }
+  .tp-play { width: 52px; height: 52px; color: #fff; background: var(--accent); border-color: var(--accent); } .tp-play svg { width: 22px; height: 22px; }
+  .tp-play .ico-pause { display: none; } .tp-play.is-playing .ico-play { display: none; } .tp-play.is-playing .ico-pause { display: inline; }
+  .seek { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 0; background: var(--meter-track); border-radius: 999px; cursor: pointer; }
+  .seek::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 999px; background: var(--accent); border: 2px solid var(--surface); cursor: pointer; }
+  .seek::-moz-range-thumb { width: 13px; height: 13px; border-radius: 999px; background: var(--accent); border: 2px solid var(--surface); cursor: pointer; }
+  .time-row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .blind-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+  .blind-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .which-row { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .which-q { font-size: 14px; font-weight: 600; }
+  .which-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .which-btn { padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text); transition: background-color .15s, transform .1s; }
+  .which-btn:hover { background: var(--surface-2); }
+  .which-btn:active { transform: scale(.97); }
+  .which-btn[data-side="a"] { border-color: color-mix(in srgb, var(--a-color) 45%, var(--border)); }
+  .which-btn[data-side="b"] { border-color: color-mix(in srgb, var(--b-color) 45%, var(--border)); }
+  .reveal-line { display: none; margin: 4px 0 0; font-size: 13px; font-weight: 600; text-align: center; color: var(--accent); }
+  .reveal-line.show { display: block; }
+
+  /* Camera mode */
+  .cam-grid { display: grid; grid-template-columns: 1fr 1px 1fr; gap: 18px; }
+  .cam-col { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .video-wrap { position: relative; border-radius: var(--radius-md); overflow: hidden; background: var(--surface-2); aspect-ratio: 16 / 9; }
+  .video-wrap video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #0b0d10; }
+  .res-chip { position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; font-size: 12px; font-weight: 600; color: #fff; background: rgba(11,13,16,.62); border-radius: 999px; }
+
+  /* App footer */
+  .app-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--muted); padding: 2px 4px; }
+  .brand { font-weight: 600; color: var(--text-2); }
+  .ghost-link { background: none; border: none; padding: 4px 0; cursor: pointer; color: var(--text-2); font: inherit; font-weight: 600; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .ghost-link:hover { color: var(--text); }
+  .ghost-link svg { width: 14px; height: 14px; }
+
+  .global-msg { display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 12px; padding: 48px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+  .global-msg svg { width: 44px; height: 44px; color: var(--warning); }
+  .global-msg h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .global-msg p { margin: 0; font-size: 14px; color: var(--text-2); max-width: 42ch; }
+  .global-msg code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .bar { transition: none; }
+  }
+
+  @media (max-width: 899px) {
+    .cmp-head { flex-direction: column; }
+    .cmp-head-right { align-items: flex-start; width: 100%; }
+    .picker-grid { grid-template-columns: 1fr; }
+    .swap-btn { justify-self: center; transform: rotate(90deg); }
+    .swap-btn:active { transform: rotate(270deg) scale(.94); }
+    .compare-grid, .cam-grid { grid-template-columns: 1fr; gap: 16px; }
+    .cmp-divider { height: 1px; }
+    .verdict { position: sticky; top: 0; z-index: 10; }
+    .verdict-title { font-size: 20px; }
+    .calib-btn, .rec-big, .which-btn, .device-select, .tp-restart { min-height: 44px; }
+  }
+</style>
+</head>
+<body>
+<main class="app" id="app">
+
+  <!-- Header -->
+  <header class="cmp-head">
+    <div class="cmp-title">
+      <h1>Compare two devices</h1>
+      <p class="cmp-sub" id="headSub">Find out which mic sounds better on calls — speak once, we listen on both.</p>
+    </div>
+    <div class="cmp-head-right">
+      <div class="mode-switch" role="group" aria-label="What to compare">
+        <button class="mode-tab" id="modeMic" data-active="true" aria-pressed="true" type="button">Microphones</button>
+        <button class="mode-tab" id="modeSpk" data-active="false" aria-pressed="false" type="button">Speakers</button>
+        <button class="mode-tab" id="modeCam" data-active="false" aria-pressed="false" type="button">Cameras</button>
+      </div>
+      <a class="ghost-link" href="index.html">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Back to full check
+      </a>
+    </div>
+  </header>
+
+  <!-- Verdict banner -->
+  <section class="verdict" id="verdict" data-state="checking" role="status" aria-live="polite">
+    <div class="verdict-main">
+      <span class="verdict-dot" aria-hidden="true"></span>
+      <div class="verdict-text">
+        <h2 class="verdict-title" id="verdictTitle">Getting both microphones ready…</h2>
+        <p class="verdict-sub" id="verdictSub">We open both at once so one voice tests both.</p>
+      </div>
+    </div>
+    <div class="verdict-aside">
+      <span class="privacy-pill">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" opacity=".18"/><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Private — nothing leaves this device
+      </span>
+    </div>
+  </section>
+
+  <!-- Global insecure / unsupported -->
+  <section class="global-msg" id="globalMsg" hidden aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2L2 21h20L12 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5M12 17.5v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <h2>Comparing needs a secure connection</h2>
+    <p>Open this page over <code>https://</code> (or on <code>localhost</code>) so your browser will allow microphone and camera access.</p>
+  </section>
+
+  <!-- Device picker -->
+  <section class="card" id="pickerCard">
+    <div class="picker-grid">
+      <div class="picker-col">
+        <div class="picker-col-head"><span class="ab-chip ab-a">A</span><span class="ab-label" id="pickLabelA">Microphone A</span></div>
+        <label class="sr-only" for="selA">Device A</label>
+        <select class="device-select" id="selA" disabled><option>—</option></select>
+      </div>
+      <button class="swap-btn" id="swapBtn" type="button" aria-label="Swap A and B">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h11l-3-3M17 16H6l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="picker-col">
+        <div class="picker-col-head"><span class="ab-chip ab-b">B</span><span class="ab-label" id="pickLabelB">Microphone B</span></div>
+        <label class="sr-only" for="selB">Device B</label>
+        <select class="device-select" id="selB" disabled><option>—</option></select>
+      </div>
+    </div>
+    <p class="picker-help" id="pickerHelp">Pick two different microphones. The same device can't be opened twice.</p>
+    <div class="notice warn" id="singleNotice" hidden>We only found one microphone. Plug in a second one to compare.</div>
+  </section>
+
+  <!-- MIC: live compare -->
+  <section class="card" id="compareCard">
+    <div class="compare-head">
+      <span class="card-h">Live levels</span>
+      <button class="calib-btn" id="calibBtn" type="button">Measure background noise</button>
+    </div>
+    <div class="compare-grid">
+      <div class="cmp-col" id="colA" data-side="a">
+        <div class="cmp-col-head"><span class="ab-chip ab-a">A</span><span class="dev-name" id="nameA">Microphone A</span></div>
+        <div class="meter-wrap">
+          <div class="meter" id="meterA" role="img" aria-label="Microphone A live level"></div>
+          <button class="arm-btn" id="armA" type="button">Tap to start</button>
+        </div>
+        <div class="spec-wrap"><canvas class="spectrum" id="specA" width="300" height="34"></canvas><span class="spec-cap"><span>bassier</span><span>brighter</span></span></div>
+        <div class="metrics">
+          <div class="mrow"><span class="mlabel">Level</span><span class="mval" id="lvlA">—</span><span class="winchip" id="winLvlA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Peak</span><span class="mval ok" id="peakA">OK</span><span class="winchip" id="winPeakA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Background noise</span><span class="mval" id="noiseA">—</span><span class="winchip" id="winNoiseA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Signal-to-noise <span style="color:var(--muted)">(est.)</span></span><span class="mval" id="snrA">—</span><span class="winchip" id="winSnrA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+        </div>
+        <p class="col-error" id="errA">This mic is unavailable.</p>
+      </div>
+      <div class="cmp-divider" aria-hidden="true"></div>
+      <div class="cmp-col" id="colB" data-side="b">
+        <div class="cmp-col-head"><span class="ab-chip ab-b">B</span><span class="dev-name" id="nameB">Microphone B</span></div>
+        <div class="meter-wrap">
+          <div class="meter" id="meterB" role="img" aria-label="Microphone B live level"></div>
+          <button class="arm-btn" id="armB" type="button">Tap to start</button>
+        </div>
+        <div class="spec-wrap"><canvas class="spectrum" id="specB" width="300" height="34"></canvas><span class="spec-cap"><span>bassier</span><span>brighter</span></span></div>
+        <div class="metrics">
+          <div class="mrow"><span class="mlabel">Level</span><span class="mval" id="lvlB">—</span><span class="winchip" id="winLvlB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Peak</span><span class="mval ok" id="peakB">OK</span><span class="winchip" id="winPeakB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Background noise</span><span class="mval" id="noiseB">—</span><span class="winchip" id="winNoiseB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+          <div class="mrow"><span class="mlabel">Signal-to-noise <span style="color:var(--muted)">(est.)</span></span><span class="mval" id="snrB">—</span><span class="winchip" id="winSnrB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>wins</span></div>
+        </div>
+        <p class="col-error" id="errB">This mic is unavailable.</p>
+      </div>
+    </div>
+    <p class="compare-note">Estimates from your live signal — the listen test below is the real judge.</p>
+  </section>
+
+  <!-- MIC: listen test -->
+  <section class="card" id="listenCard">
+    <div class="listen-head"><span class="card-h">Hear the difference</span>
+      <label class="blind-row"><input type="checkbox" id="blindToggle" /> Blind test</label>
+    </div>
+    <div class="rec-center" id="recCenter">
+      <button class="rec-big" id="recBtn" type="button"><span class="rec-ico" aria-hidden="true"></span><span id="recLabel">Record 5 seconds on both mics</span></button>
+    </div>
+    <div class="ab-player" id="abPlayer">
+      <div class="ab-tabs" role="group" aria-label="Choose which mic to hear">
+        <button class="ab-tab" id="tabA" data-side="a" data-active="true" aria-pressed="true" type="button">Mic A</button>
+        <button class="ab-tab" id="tabB" data-side="b" data-active="false" aria-pressed="false" type="button">Mic B</button>
+      </div>
+      <div class="transport">
+        <button class="tp-btn tp-restart" id="restartBtn" type="button" aria-label="Restart from the beginning">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 5.5V11h-5.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="tp-btn tp-play" id="playBtn" type="button" aria-label="Play">
+          <svg class="ico-play" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5.5v13l10-6.5-10-6.5z" fill="currentColor"/></svg>
+          <svg class="ico-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/></svg>
+        </button>
+      </div>
+      <div>
+        <input class="seek" id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek through the recording" />
+        <div class="time-row"><span id="timeCur">0:00</span><span id="timeDur">0:00</span></div>
+      </div>
+      <div class="which-row">
+        <span class="which-q" id="whichQ">Which sounded better?</span>
+        <div class="which-btns">
+          <button class="which-btn" id="whichA" data-side="a" type="button">Mic A</button>
+          <button class="which-btn" id="whichB" data-side="b" type="button">Mic B</button>
+          <button class="which-btn" id="whichTie" data-side="tie" type="button">Too close to tell</button>
+        </div>
+        <p class="reveal-line" id="revealLine"></p>
+      </div>
+      <div class="rec-center"><button class="ghost-btn" id="recAgainBtn" type="button">Record again</button></div>
+    </div>
+    <p class="notice warn" id="recUnsupported" hidden>Your browser can't record here, so we can't play the two back — the meters above are your guide.</p>
+  </section>
+
+  <!-- CAMERA mode -->
+  <section class="card" id="cameraCard" hidden>
+    <div class="cam-grid">
+      <div class="cam-col">
+        <div class="cmp-col-head"><span class="ab-chip ab-a">A</span><span class="dev-name" id="camNameA">Camera A</span></div>
+        <div class="video-wrap"><video id="vidA" autoplay muted playsinline aria-label="Camera A preview"></video><span class="res-chip" id="camResChipA" hidden></span></div>
+        <div class="metrics">
+          <div class="mrow"><span class="mlabel">Resolution</span><span class="mval" id="camResA">—</span><span class="winchip" id="winResA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>sharper</span></div>
+          <div class="mrow"><span class="mlabel">Frame rate</span><span class="mval" id="camFpsA">—</span><span class="winchip" id="winFpsA"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>smoother</span></div>
+          <div class="mrow"><span class="mlabel">Aspect ratio</span><span class="mval" id="camArA">—</span><span></span></div>
+          <div class="mrow"><span class="mlabel">Brightness</span><span class="mval" id="camBriA">—</span><span></span></div>
+        </div>
+        <p class="col-error" id="camErrA">This camera is unavailable.</p>
+      </div>
+      <div class="cmp-divider" aria-hidden="true"></div>
+      <div class="cam-col">
+        <div class="cmp-col-head"><span class="ab-chip ab-b">B</span><span class="dev-name" id="camNameB">Camera B</span></div>
+        <div class="video-wrap"><video id="vidB" autoplay muted playsinline aria-label="Camera B preview"></video><span class="res-chip" id="camResChipB" hidden></span></div>
+        <div class="metrics">
+          <div class="mrow"><span class="mlabel">Resolution</span><span class="mval" id="camResB">—</span><span class="winchip" id="winResB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>sharper</span></div>
+          <div class="mrow"><span class="mlabel">Frame rate</span><span class="mval" id="camFpsB">—</span><span class="winchip" id="winFpsB"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>smoother</span></div>
+          <div class="mrow"><span class="mlabel">Aspect ratio</span><span class="mval" id="camArB">—</span><span></span></div>
+          <div class="mrow"><span class="mlabel">Brightness</span><span class="mval" id="camBriB">—</span><span></span></div>
+        </div>
+        <p class="col-error" id="camErrB">This camera is unavailable.</p>
+      </div>
+    </div>
+    <p class="compare-note">We can't measure lens quality, colour or low-light performance — trust the previews.</p>
+  </section>
+
+  <!-- SPEAKER mode -->
+  <section class="card" id="speakerCard" hidden>
+    <div class="listen-head">
+      <span class="card-h">Play the same sound through each</span>
+      <label class="blind-row"><input type="checkbox" id="spkBlind" /> Blind test</label>
+    </div>
+    <div class="ab-player show" id="spkPlayer">
+      <div class="ab-tabs" role="group" aria-label="Choose which speaker to hear">
+        <button class="ab-tab" id="spkTabA" data-side="a" data-active="true" aria-pressed="true" type="button">Speaker A</button>
+        <button class="ab-tab" id="spkTabB" data-side="b" data-active="false" aria-pressed="false" type="button">Speaker B</button>
+      </div>
+      <div class="transport">
+        <button class="tp-btn tp-restart" id="spkRestart" type="button" aria-label="Restart from the beginning">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 5.5V11h-5.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="tp-btn tp-play" id="spkPlay" type="button" aria-label="Play">
+          <svg class="ico-play" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5.5v13l10-6.5-10-6.5z" fill="currentColor"/></svg>
+          <svg class="ico-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/></svg>
+        </button>
+      </div>
+      <div>
+        <input class="seek" id="spkSeek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek through the test sound" />
+        <div class="time-row"><span id="spkTimeCur">0:00</span><span id="spkTimeDur">0:00</span></div>
+      </div>
+      <div class="which-row">
+        <span class="which-q" id="spkWhichQ">Which sounded better?</span>
+        <div class="which-btns">
+          <button class="which-btn" id="spkWhichA" data-side="a" type="button">Speaker A</button>
+          <button class="which-btn" id="spkWhichB" data-side="b" type="button">Speaker B</button>
+          <button class="which-btn" id="spkWhichTie" data-side="tie" type="button">Too close to tell</button>
+        </div>
+        <p class="reveal-line" id="spkReveal"></p>
+      </div>
+    </div>
+    <p class="compare-note">The same clip plays through each speaker so you can hear the difference — pick the one you like. We can't score sound quality for you.</p>
+    <p class="notice warn" id="spkUnsupported" hidden>This browser can't route audio to a chosen speaker, so speakers can't be A/B'd here. Chrome or Edge can.</p>
+  </section>
+
+  <!-- Footer -->
+  <footer class="app-foot">
+    <button class="ghost-link" id="againBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-.5 4M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Compare again
+    </button>
+    <span><span class="brand">GreenLight</span> · Everything runs on your device — nothing is uploaded.</span>
+  </footer>
+
+  <audio id="playAudioA" playsinline></audio>
+  <audio id="playAudioB" playsinline></audio>
+  <audio id="spkAudioA" playsinline></audio>
+  <audio id="spkAudioB" playsinline></audio>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $("app");
+
+  // ---- Config ----
+  var DBFS_FLOOR = -60, CLIP_ABS = 0.985, MARGIN_DB = 3;
+  var SPEECH_GATE_FALLBACK = -45, SPEECH_GATE_OVER_NOISE = 12;
+  var CALIB_MS = 2000, REC_MS = 5000, MIN_SPEECH_FRAMES = 25, BAR_COUNT = 20, SPEC_BARS = 40;
+
+  var mediaOK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  var supportsRecording = (typeof MediaRecorder !== "undefined");
+  var supportsSinkId = typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+
+  // ---- Elements ----
+  var verdict = $("verdict"), verdictTitle = $("verdictTitle"), verdictSub = $("verdictSub");
+  var modeMic = $("modeMic"), modeCam = $("modeCam"), modeSpk = $("modeSpk");
+  var pickerCard = $("pickerCard"), compareCard = $("compareCard"), listenCard = $("listenCard"), cameraCard = $("cameraCard");
+  var selA = $("selA"), selB = $("selB"), swapBtn = $("swapBtn"), pickerHelp = $("pickerHelp"), singleNotice = $("singleNotice");
+  var pickLabelA = $("pickLabelA"), pickLabelB = $("pickLabelB");
+  var headSub = $("headSub");
+  var calibBtn = $("calibBtn"), armA = $("armA"), armB = $("armB");
+  var recBtn = $("recBtn"), recLabel = $("recLabel"), recCenter = $("recCenter"), recUnsupported = $("recUnsupported");
+  var abPlayer = $("abPlayer"), tabA = $("tabA"), tabB = $("tabB");
+  var playBtn = $("playBtn"), restartBtn = $("restartBtn"), seek = $("seek"), timeCur = $("timeCur"), timeDur = $("timeDur");
+  var blindToggle = $("blindToggle"), whichQ = $("whichQ"), whichA = $("whichA"), whichB = $("whichB"), whichTie = $("whichTie"), revealLine = $("revealLine");
+  var recAgainBtn = $("recAgainBtn"), againBtn = $("againBtn"), globalMsg = $("globalMsg");
+  var playAudioA = $("playAudioA"), playAudioB = $("playAudioB");
+  var speakerCard = $("speakerCard"), spkPlayer = $("spkPlayer"), spkUnsupported = $("spkUnsupported"), spkBlind = $("spkBlind");
+  var spkTabA = $("spkTabA"), spkTabB = $("spkTabB"), spkPlay = $("spkPlay"), spkRestart = $("spkRestart"), spkSeek = $("spkSeek");
+  var spkTimeCur = $("spkTimeCur"), spkTimeDur = $("spkTimeDur"), spkWhichQ = $("spkWhichQ");
+  var spkWhichA = $("spkWhichA"), spkWhichB = $("spkWhichB"), spkWhichTie = $("spkWhichTie"), spkReveal = $("spkReveal");
+  var spkAudioA = $("spkAudioA"), spkAudioB = $("spkAudioB");
+
+  // ---- Audio context ----
+  var audioCtx = null;
+  function ensureCtx() {
+    if (!audioCtx) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) { try { audioCtx = new AC(); audioCtx.addEventListener("statechange", onCtxState); } catch (e) { audioCtx = null; } } }
+    return audioCtx;
+  }
+  function resumeCtx() { if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(function () {}); }
+  function unlockAudio() { ensureCtx(); resumeCtx(); }
+  function onCtxState() { if (audioCtx && audioCtx.state === "running") { app.classList.remove("needs-gesture"); removeGestureUnlock(); } }
+  function onGesture() { unlockAudio(); }
+  function addGestureUnlock() { ["pointerdown", "keydown", "touchstart"].forEach(function (e) { window.addEventListener(e, onGesture, { passive: true }); }); }
+  function removeGestureUnlock() { ["pointerdown", "keydown", "touchstart"].forEach(function (e) { window.removeEventListener(e, onGesture); }); }
+
+  // ---- Per-side mic state ----
+  function newMic(side) {
+    var U = side.toUpperCase();
+    return {
+      side: side, deviceId: null, stream: null, track: null, source: null, analyser: null,
+      timeData: null, freqData: null, bars: [], displayLevel: 0,
+      levelDbfs: DBFS_FLOOR, peakAbs: 0, clipFrames: 0, clipped: false,
+      noiseFloorDbfs: null, calibSamples: [], speechDbfs: [], speakingDbfs: null, snr: null, errored: false,
+      recorder: null, recChunks: [], recUrl: null, recDiscarded: false,
+      els: {
+        col: $("col" + U), name: $("name" + U), meter: $("meter" + U), spec: $("spec" + U), err: $("err" + U),
+        lvl: $("lvl" + U), peak: $("peak" + U), noise: $("noise" + U), snr: $("snr" + U),
+        winLvl: $("winLvl" + U), winPeak: $("winPeak" + U), winNoise: $("winNoise" + U), winSnr: $("winSnr" + U)
+      },
+      audioEl: side === "a" ? playAudioA : playAudioB, recDuration: 0
+    };
+  }
+  var M = { a: newMic("a"), b: newMic("b") };
+  var SIDES = ["a", "b"];
+  var running = false, raf = 0, calibrating = false, calibEnd = 0;
+  var mode = "mic";
+  var micDevices = [], camDevices = [], spkDevices = [];
+  var spk = { clipUrl: null, active: "a", knownDur: 0, seeking: false, blindMap: null, picked: null };
+  var humanPick = null, blindMap = null; // blindMap: {"1":"a"/"b", ...}
+  var recActiveCount = 0;
+  var openMicGen = 0, openCamGen = 0; // cancel stale getUserMedia resolutions on rapid re-select
+  function stopStream(s) { if (s) s.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); }
+
+  // ---- Helpers ----
+  function fmtDb(db) { if (db == null) return "—"; if (db <= DBFS_FLOOR) return "< " + DBFS_FLOOR + " dBFS"; return Math.round(db) + " dBFS"; }
+  function fmtClock(sec) { sec = Math.max(0, Math.floor(sec || 0)); var m = Math.floor(sec / 60), s = sec % 60; return m + ":" + (s < 10 ? "0" : "") + s; }
+  function pctile(arr, p) { if (!arr.length) return null; var a = arr.slice().sort(function (x, y) { return x - y; }); var i = Math.min(a.length - 1, Math.floor((p / 100) * a.length)); return a[i]; }
+  function median(arr) { if (!arr.length) return null; var a = arr.slice().sort(function (x, y) { return x - y; }); var n = a.length; return n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2; }
+  function classify(err) { var n = err && err.name; if (n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError") return "blocked"; if (n === "NotFoundError" || n === "OverconstrainedError") return "nodevice"; if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError") return "busy"; return "error"; }
+  function gUM(c) { return navigator.mediaDevices.getUserMedia(c); }
+  var lastVerdictKey = "";
+  function setVerdict(state, title, sub) {
+    var key = state + "|" + title + "|" + sub;
+    if (key === lastVerdictKey) return; // called every frame — avoid DOM/screen-reader spam
+    lastVerdictKey = key;
+    verdict.setAttribute("data-state", state); verdictTitle.textContent = title; verdictSub.textContent = sub;
+  }
+
+  function buildMeter(m) {
+    m.els.meter.innerHTML = ""; m.bars = [];
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < BAR_COUNT; i++) { var b = document.createElement("span"); b.className = "bar" + (i >= 17 ? " hot" : ""); b._on = false; m.bars.push(b); frag.appendChild(b); }
+    m.els.meter.appendChild(frag);
+  }
+  function renderMeter(m, level) {
+    var lit = Math.round(level * BAR_COUNT);
+    for (var i = 0; i < BAR_COUNT; i++) { var on = i < lit; if (m.bars[i]._on !== on) { m.bars[i].classList.toggle("lit", on); m.bars[i]._on = on; } }
+  }
+  function renderSpectrum(m) {
+    var c = m.els.spec, ctx = c.getContext("2d"); if (!ctx) return;
+    var W = c.width, H = c.height; ctx.clearRect(0, 0, W, H);
+    var col = getComputedStyle(m.els.col).getPropertyValue(m.side === "a" ? "--a-color" : "--b-color").trim() || "#4F46E5";
+    var bins = m.freqData.length, per = Math.floor(bins * 0.7 / SPEC_BARS), gap = 2, bw = (W - gap * (SPEC_BARS - 1)) / SPEC_BARS;
+    ctx.fillStyle = col;
+    for (var i = 0; i < SPEC_BARS; i++) {
+      var sum = 0; for (var j = 0; j < per; j++) sum += m.freqData[i * per + j] || 0;
+      var v = (sum / per) / 255; var bh = Math.max(1, v * H);
+      ctx.globalAlpha = 0.35 + v * 0.65;
+      ctx.fillRect(i * (bw + gap), H - bh, bw, bh);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Live analysis loop ----
+  function loop() {
+    if (!running) { raf = 0; return; }
+    SIDES.forEach(processSide);
+    if (calibrating && Date.now() >= calibEnd) finishCalibration();
+    computeVerdict();
+    raf = requestAnimationFrame(loop);
+  }
+  function processSide(s) {
+    var m = M[s]; if (!m.analyser || m.errored) return;
+    m.analyser.getFloatTimeDomainData(m.timeData);
+    var sum = 0, peak = 0, n = m.timeData.length;
+    for (var i = 0; i < n; i++) { var v = m.timeData[i]; sum += v * v; var a = v < 0 ? -v : v; if (a > peak) peak = a; }
+    var rms = Math.sqrt(sum / n);
+    var dbfs = rms > 1e-7 ? 20 * Math.log10(rms) : -120;
+    if (dbfs < DBFS_FLOOR) dbfs = DBFS_FLOOR;
+    m.levelDbfs = dbfs;
+    if (peak > m.peakAbs) m.peakAbs = peak;
+    if (peak >= CLIP_ABS) { m.clipFrames++; if (m.clipFrames >= 3 && !m.clipped) { m.clipped = true; m.els.peak.textContent = "Clipped"; m.els.peak.className = "mval clip"; } }
+    var norm = (dbfs - DBFS_FLOOR) / (0 - DBFS_FLOOR); if (norm < 0) norm = 0; if (norm > 1) norm = 1;
+    m.displayLevel = norm > m.displayLevel ? norm : (m.displayLevel * 0.85 + norm * 0.15);
+    renderMeter(m, m.displayLevel);
+    m.analyser.getByteFrequencyData(m.freqData);
+    renderSpectrum(m);
+    m.els.lvl.textContent = fmtDb(dbfs);
+    if (calibrating) m.calibSamples.push(rms);
+    var gate = (m.noiseFloorDbfs != null) ? (m.noiseFloorDbfs + SPEECH_GATE_OVER_NOISE) : SPEECH_GATE_FALLBACK;
+    if (dbfs > gate) { m.speechDbfs.push(dbfs); if (m.speechDbfs.length > 600) m.speechDbfs.shift(); }
+  }
+
+  // ---- Calibration ----
+  function startCalibration() {
+    if (calibrating || !bothLive()) return;
+    unlockAudio();
+    SIDES.forEach(function (s) { M[s].calibSamples = []; });
+    calibrating = true; calibEnd = Date.now() + CALIB_MS;
+    calibBtn.classList.add("calibrating");
+    var tick = function () {
+      if (!calibrating) return;
+      var left = Math.ceil((calibEnd - Date.now()) / 1000);
+      calibBtn.textContent = "Stay quiet… " + Math.max(0, left);
+      if (calibrating) setTimeout(tick, 200);
+    };
+    tick();
+  }
+  function finishCalibration() {
+    calibrating = false;
+    calibBtn.classList.remove("calibrating");
+    calibBtn.textContent = "Measure background noise";
+    SIDES.forEach(function (s) {
+      var m = M[s]; if (!m.calibSamples.length) return;
+      var med = median(m.calibSamples);
+      m.noiseFloorDbfs = med > 1e-7 ? Math.max(DBFS_FLOOR, 20 * Math.log10(med)) : DBFS_FLOOR;
+      m.els.noise.textContent = fmtDb(m.noiseFloorDbfs);
+      m.speechDbfs = []; // require fresh speech after calibrating
+    });
+  }
+
+  // ---- Verdict ----
+  function bothLive() { return M.a.analyser && M.b.analyser && !M.a.errored && !M.b.errored; }
+  function setWin(metric, aWins, bWins) {
+    M.a.els["win" + metric].classList.toggle("show", !!aWins);
+    M.b.els["win" + metric].classList.toggle("show", !!bWins);
+  }
+  function computeVerdict() {
+    if (!bothLive() || humanPick) return;
+    var A = M.a, B = M.b;
+    if (calibrating) { setVerdict("checking", "Listening to the room…", "Stay quiet while we measure the background noise."); return; }
+    var enough = A.speechDbfs.length >= MIN_SPEECH_FRAMES && B.speechDbfs.length >= MIN_SPEECH_FRAMES;
+    if (!enough) { setVerdict("needs-input", "Speak now — a few seconds is enough.", A.noiseFloorDbfs != null ? "We're comparing both mics as you talk." : "Tip: measure background noise first for a fuller picture."); return; }
+
+    var spA = pctile(A.speechDbfs, 90), spB = pctile(B.speechDbfs, 90);
+    A.speakingDbfs = spA; B.speakingDbfs = spB;
+    var haveNoise = A.noiseFloorDbfs != null && B.noiseFloorDbfs != null;
+    var snrA = haveNoise ? spA - A.noiseFloorDbfs : null, snrB = haveNoise ? spB - B.noiseFloorDbfs : null;
+    A.snr = snrA; B.snr = snrB;
+    A.els.snr.textContent = snrA != null ? Math.round(snrA) + " dB" : "—";
+    B.els.snr.textContent = snrB != null ? Math.round(snrB) + " dB" : "—";
+
+    // per-metric winners
+    var lvlDiff = spA - spB;
+    setWin("Lvl", lvlDiff > MARGIN_DB, lvlDiff < -MARGIN_DB);
+    if (haveNoise) {
+      var noiseDiff = B.noiseFloorDbfs - A.noiseFloorDbfs; // A wins if quieter (A lower)
+      setWin("Noise", noiseDiff > MARGIN_DB, noiseDiff < -MARGIN_DB);
+      var snrDiff = snrA - snrB;
+      setWin("Snr", snrDiff > MARGIN_DB, snrDiff < -MARGIN_DB);
+    } else { setWin("Noise", false, false); setWin("Snr", false, false); }
+    setWin("Peak", A.clipped === false && B.clipped === true, B.clipped === false && A.clipped === true);
+
+    decideOverall(A, B, spA, spB, snrA, snrB, haveNoise);
+  }
+
+  function decideOverall(A, B, spA, spB, snrA, snrB, haveNoise) {
+    var winner = null, reasons = [];
+    if (A.clipped !== B.clipped) {
+      winner = A.clipped ? "b" : "a";
+      var loud = A.clipped ? "A" : "B";
+      setVerdict("good", "Mic " + winner.toUpperCase() + " is the better pick",
+        "Mic " + loud + " distorts when you get loud — the cleaner mic wins here." + caveat(haveNoise));
+      return;
+    }
+    var score = 0;
+    if (Math.abs(spA - spB) > MARGIN_DB) { score += spA > spB ? 1 : -1; }
+    if (haveNoise && Math.abs(snrA - snrB) > MARGIN_DB) { score += snrA > snrB ? 1 : -1; }
+
+    if (score === 0) {
+      // tie or disagreement
+      var louder = spA > spB ? "A" : "B", cleaner = (haveNoise && snrA > snrB) ? "A" : "B";
+      var sub = haveNoise
+        ? ("Mic " + louder + " is a touch louder; Mic " + cleaner + " is a touch cleaner. Let your ears decide below.")
+        : ("They're very close on loudness. Use the listen test below to decide." );
+      setVerdict("tie", "It's basically a tie", sub);
+      return;
+    }
+    winner = score > 0 ? "a" : "b";
+    var w = winner.toUpperCase();
+    if (Math.abs(spA - spB) > MARGIN_DB && ((spA > spB) === (winner === "a"))) reasons.push("louder");
+    if (haveNoise && Math.abs(snrA - snrB) > MARGIN_DB && ((snrA > snrB) === (winner === "a"))) reasons.push("clearer, with less background hiss");
+    var reasonText = reasons.length ? capitalize(reasons.join(" and ")) + "." : "It came out ahead on our measurements.";
+    setVerdict("good", "Mic " + w + " is the better pick", reasonText + caveat(haveNoise));
+  }
+  function caveat(haveNoise) { return haveNoise ? " Based on what we just measured — the listen test is the real judge." : " Measure background noise for a fuller picture."; }
+  function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // ---- Open / teardown mics ----
+  function stopMicSide(m) {
+    discardRecorder(m);
+    if (m.source) { try { m.source.disconnect(); } catch (e) {} m.source = null; }
+    m.analyser = null;
+    if (m.track) { try { m.track.stop(); } catch (e) {} m.track = null; }
+    m.stream = null;
+  }
+  function resetMicMetrics(m) {
+    m.displayLevel = 0; m.levelDbfs = DBFS_FLOOR; m.peakAbs = 0; m.clipFrames = 0; m.clipped = false;
+    m.noiseFloorDbfs = null; m.calibSamples = []; m.speechDbfs = []; m.speakingDbfs = null; m.snr = null;
+    m.els.lvl.textContent = "—"; m.els.peak.textContent = "OK"; m.els.peak.className = "mval ok";
+    m.els.noise.textContent = "—"; m.els.snr.textContent = "—";
+    renderMeter(m, 0);
+    ["Lvl", "Peak", "Noise", "Snr"].forEach(function (k) { m.els["win" + k].classList.remove("show"); });
+  }
+  function setColError(m, kind) {
+    m.errored = true; m.els.col.classList.add("errored");
+    var msg = kind === "blocked" ? "Microphone access is blocked." : kind === "busy" ? "This mic is in use by another app." : kind === "nodevice" ? "This microphone is no longer available." : "This mic is unavailable.";
+    m.els.err.textContent = msg;
+    renderMeter(m, 0);
+  }
+  function clearColError(m) { m.errored = false; m.els.col.classList.remove("errored"); }
+
+  function attachMic(m, stream) {
+    m.stream = stream; m.track = stream.getAudioTracks()[0];
+    if (!m.track) { setColError(m, "nodevice"); return; }
+    var st = m.track.getSettings ? m.track.getSettings() : {};
+    if (st.deviceId) m.deviceId = st.deviceId;
+    m.track.addEventListener("ended", function () { if (M[m.side] === m && m.track) { setColError(m, "nodevice"); refreshDevices(); } });
+    ensureCtx(); resumeCtx();
+    try {
+      m.source = audioCtx.createMediaStreamSource(stream);
+      m.analyser = audioCtx.createAnalyser();
+      m.analyser.fftSize = 2048; m.analyser.smoothingTimeConstant = 0.6;
+      m.source.connect(m.analyser);
+      m.timeData = new Float32Array(m.analyser.fftSize);
+      m.freqData = new Uint8Array(m.analyser.frequencyBinCount);
+    } catch (e) { if (m.track) { try { m.track.stop(); } catch (e2) {} m.track = null; } m.stream = null; setColError(m, "error"); return; }
+    clearColError(m);
+    enableRecordUI();
+  }
+
+  function openBothMics() {
+    if (!bothChosen()) return;
+    var gen = ++openMicGen;
+    stopLoop();
+    SIDES.forEach(function (s) { stopMicSide(M[s]); if (M[s].recUrl) { URL.revokeObjectURL(M[s].recUrl); M[s].recUrl = null; } });
+    humanPick = null; hideAbPlayer();
+    resetMicMetrics(M.a); resetMicMetrics(M.b);
+    clearColError(M.a); clearColError(M.b);
+    setVerdict("checking", "Getting both microphones ready…", "We open both at once so one voice tests both.");
+    var idA = selA.value, idB = selB.value;
+    var pa = gUM({ audio: micConstraint(idA) }).then(function (s) { if (gen !== openMicGen) { stopStream(s); return; } attachMic(M.a, s); }).catch(function (e) { if (gen !== openMicGen) return; setColError(M.a, classify(e)); handleOpenError(e); });
+    var pb = gUM({ audio: micConstraint(idB) }).then(function (s) { if (gen !== openMicGen) { stopStream(s); return; } attachMic(M.b, s); }).catch(function (e) { if (gen !== openMicGen) return; setColError(M.b, classify(e)); handleOpenError(e); });
+    Promise.all([pa, pb]).then(function () {
+      if (gen !== openMicGen) return;
+      startLoop();
+      if (audioCtx && audioCtx.state !== "running") { app.classList.add("needs-gesture"); addGestureUnlock(); }
+      if (M.a.errored || M.b.errored) setVerdict("problem", "Can't compare yet", "One mic isn't ready — fix the highlighted side, then it'll compare automatically.");
+      else setVerdict("needs-input", "Speak now — a few seconds is enough.", "We're listening on both mics at once.");
+      refreshDevices();
+    });
+  }
+  // Raw comparison: disable processing so real hardware differences show through.
+  function micConstraint(id) { return { deviceId: { exact: id }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }; }
+  function handleOpenError(e) {
+    if (classify(e) === "blocked") setVerdict("problem", "Microphone is blocked", "Allow microphone access in your address bar, then Compare again.");
+  }
+  function startLoop() { if (!running) { running = true; if (!raf) raf = requestAnimationFrame(loop); } }
+  function stopLoop() { running = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+
+  // ---- Recording (both mics) ----
+  function pickRecMime() { var o = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]; if (window.MediaRecorder && MediaRecorder.isTypeSupported) { for (var i = 0; i < o.length; i++) if (MediaRecorder.isTypeSupported(o[i])) return o[i]; } return ""; }
+  function discardRecorder(m) {
+    m.recDiscarded = true;
+    if (m.recorder) { try { m.recorder.ondataavailable = null; m.recorder.onstop = null; m.recorder.onerror = null; } catch (e) {} if (m.recorder.state !== "inactive") { try { m.recorder.stop(); } catch (e) {} } m.recorder = null; }
+  }
+  var recTimer = 0, recStartTs = 0;
+  function startRecordingBoth() {
+    if (!supportsRecording || !bothLive()) return;
+    unlockAudio();
+    humanPick = null; revealLine.classList.remove("show");
+    var mime = pickRecMime();
+    var ok = true;
+    SIDES.forEach(function (s) {
+      var m = M[s];
+      if (m.recUrl) { URL.revokeObjectURL(m.recUrl); m.recUrl = null; }
+      m.recChunks = []; m.recDiscarded = false;
+      try { m.recorder = mime ? new MediaRecorder(m.stream, { mimeType: mime }) : new MediaRecorder(m.stream); }
+      catch (e) { try { m.recorder = new MediaRecorder(m.stream); } catch (e2) { ok = false; return; } }
+      m.recorder.ondataavailable = function (e) { if (m.recDiscarded) return; if (e.data && e.data.size) m.recChunks.push(e.data); };
+      m.recorder.onstop = function () { onRecStopped(m); };
+      m.recorder.onerror = function () { onRecStopped(m); };
+    });
+    if (!ok) { SIDES.forEach(function (s) { discardRecorder(M[s]); }); return; }
+    // Count only recorders that actually START — a start() that throws never fires
+    // onstop/onerror, so counting it up front would hang finalize forever.
+    var started = 0;
+    SIDES.forEach(function (s) { try { M[s].recorder.start(); started++; } catch (e) { discardRecorder(M[s]); } });
+    recActiveCount = started;
+    if (started === 0) { recBtn.classList.remove("recording"); recLabel.textContent = "Record 5 seconds on both mics"; return; }
+    recStartTs = Date.now();
+    recBtn.classList.add("recording"); recLabel.textContent = "Recording… say a sentence";
+    recTimer = setTimeout(stopRecordingBoth, REC_MS);
+  }
+  function stopRecordingBoth() {
+    if (recTimer) { clearTimeout(recTimer); recTimer = 0; }
+    SIDES.forEach(function (s) { var m = M[s]; if (m.recorder && m.recorder.state !== "inactive") { try { m.recorder.stop(); } catch (e) {} } });
+  }
+  function onRecStopped(m) {
+    if (m.recDiscarded) return;
+    m.recDuration = (Date.now() - recStartTs) / 1000;
+    if (m.recChunks.length) {
+      m.recBlob = new Blob(m.recChunks, { type: (m.recorder && m.recorder.mimeType) || "audio/webm" });
+      m.recUrl = URL.createObjectURL(m.recBlob);
+      m.audioEl.src = m.recUrl;
+    }
+    recActiveCount--;
+    if (recActiveCount <= 0) finalizeRecordings();
+  }
+  function finalizeRecordings() {
+    recBtn.classList.remove("recording"); recLabel.textContent = "Record again";
+    if (!M.a.recUrl && !M.b.recUrl) { recLabel.textContent = "Record 5 seconds on both mics"; return; }
+    knownDur = Math.max(M.a.recDuration || 0, M.b.recDuration || 0);
+    timeDur.textContent = fmtClock(knownDur);
+    // blind mapping
+    if (blindToggle.checked) { var flip = Math.random() < 0.5; blindMap = flip ? { one: "b", two: "a" } : { one: "a", two: "b" }; }
+    else blindMap = null;
+    applyTabLabels();
+    activeSide = "a"; setTab("a"); resetPlayhead();
+    showAbPlayer();
+    recCenter.hidden = true;
+  }
+
+  // ---- A/B player ----
+  var activeSide = "a", knownDur = 0, seeking = false;
+  function curEl() { return M[activeSide].audioEl; }
+  function otherEl() { return M[activeSide === "a" ? "b" : "a"].audioEl; }
+  function applyTabLabels() {
+    if (blindMap) { tabA.textContent = "Sample 1"; tabB.textContent = "Sample 2"; whichA.textContent = "Sample 1"; whichB.textContent = "Sample 2"; whichQ.textContent = "Which sample sounded better?"; }
+    else { tabA.textContent = "Mic A"; tabB.textContent = "Mic B"; whichA.textContent = "Mic A"; whichB.textContent = "Mic B"; whichQ.textContent = "Which sounded better?"; }
+    // tabs represent sample slots when blind; map slot->side
+    tabA.dataset.side = blindMap ? blindMap.one : "a";
+    tabB.dataset.side = blindMap ? blindMap.two : "b";
+    whichA.dataset.side = blindMap ? blindMap.one : "a";
+    whichB.dataset.side = blindMap ? blindMap.two : "b";
+  }
+  function setTab(side) {
+    activeSide = side;
+    var aOn = tabA.dataset.side === side, bOn = tabB.dataset.side === side;
+    tabA.setAttribute("data-active", aOn ? "true" : "false"); tabA.setAttribute("aria-pressed", aOn ? "true" : "false");
+    tabB.setAttribute("data-active", bOn ? "true" : "false"); tabB.setAttribute("aria-pressed", bOn ? "true" : "false");
+  }
+  function switchTo(side) {
+    if (side === activeSide) return;
+    var from = curEl(); var t = from.currentTime || 0; var wasPlaying = !from.paused;
+    from.pause();
+    setTab(side);
+    var to = curEl();
+    try { to.currentTime = t; } catch (e) {}
+    if (wasPlaying) { var p = to.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+  function playPause() {
+    var el = curEl();
+    if (el.paused) { if (knownDur && el.currentTime >= knownDur - 0.05) { try { el.currentTime = 0; } catch (e) {} } var p = el.play(); if (p && p.catch) p.catch(function () {}); }
+    else el.pause();
+  }
+  function restart() { var el = curEl(); try { el.currentTime = 0; } catch (e) {} var p = el.play(); if (p && p.catch) p.catch(function () {}); }
+  function resetPlayhead() { try { playAudioA.currentTime = 0; playAudioB.currentTime = 0; } catch (e) {} seek.value = "0"; timeCur.textContent = "0:00"; setPlayIcon(false); }
+  function setPlayIcon(on) { playBtn.classList.toggle("is-playing", !!on); playBtn.setAttribute("aria-label", on ? "Pause" : "Play"); }
+  function onTimeUpdate() { var el = curEl(); var d = knownDur || el.duration || 0; var c = el.currentTime || 0; timeCur.textContent = fmtClock(c); if (!seeking && d > 0 && isFinite(d)) seek.value = String(Math.max(0, Math.min(1000, Math.round(c / d * 1000)))); }
+  function onSeek() { seeking = true; var d = knownDur || curEl().duration || 0; if (d > 0) { var t = (Number(seek.value) / 1000) * d; timeCur.textContent = fmtClock(t); try { curEl().currentTime = t; } catch (e) {} } }
+  function showAbPlayer() { abPlayer.classList.add("show"); }
+  function hideAbPlayer() { abPlayer.classList.remove("show"); recCenter.hidden = false; revealLine.classList.remove("show"); recLabel.textContent = "Record 5 seconds on both mics"; recBtn.classList.remove("recording"); }
+
+  function answerWhich(side) {
+    humanPick = side;
+    if (side === "tie") { revealLine.textContent = blindMap ? "You called it a tie — trust that." : "Fair enough — it's a close call."; revealLine.classList.add("show"); return; }
+    // side here is the actual mic side (a/b) already mapped via dataset
+    var measured = measuredWinner();
+    var txt;
+    if (blindMap) {
+      var picked = side.toUpperCase();
+      if (measured === "tie") txt = "You picked Mic " + picked + ". The meters called it a tie, so your pick is the tiebreaker.";
+      else if (measured === side) txt = "You picked Mic " + picked + " — same as the meters said.";
+      else txt = "You picked Mic " + picked + " — trust your ears; the meters leaned the other way.";
+    } else {
+      if (measured === "tie") txt = "Good — the meters were too close to call, so your ears decide.";
+      else if (measured === side) txt = "Nice — your ears agree with the meters.";
+      else txt = "The meters leaned Mic " + (measured || "").toUpperCase() + ", but you preferred Mic " + side.toUpperCase() + " — trust your ears.";
+    }
+    revealLine.textContent = txt; revealLine.classList.add("show");
+    // reflect in verdict
+    if (measured !== "tie" && measured === side) verdict.setAttribute("data-state", "good");
+  }
+  function measuredWinner() {
+    var A = M.a, B = M.b;
+    if (A.speakingDbfs == null || B.speakingDbfs == null) return "tie";
+    if (A.clipped !== B.clipped) return A.clipped ? "b" : "a";
+    var score = 0;
+    if (Math.abs(A.speakingDbfs - B.speakingDbfs) > MARGIN_DB) score += A.speakingDbfs > B.speakingDbfs ? 1 : -1;
+    if (A.snr != null && B.snr != null && Math.abs(A.snr - B.snr) > MARGIN_DB) score += A.snr > B.snr ? 1 : -1;
+    return score > 0 ? "a" : score < 0 ? "b" : "tie";
+  }
+  function enableRecordUI() {
+    if (!supportsRecording) { recBtn.disabled = true; recCenter.hidden = true; recUnsupported.hidden = false; return; }
+    recBtn.disabled = !bothLive();
+  }
+
+  // ---- Devices ----
+  function bothChosen() { return selA.value && selB.value && selA.value !== selB.value; }
+  function refreshDevices() {
+    if (!mediaOK || !navigator.mediaDevices.enumerateDevices) return Promise.resolve();
+    return navigator.mediaDevices.enumerateDevices().then(function (list) {
+      micDevices = list.filter(function (d) { return d.kind === "audioinput"; });
+      camDevices = list.filter(function (d) { return d.kind === "videoinput"; });
+      spkDevices = list.filter(function (d) { return d.kind === "audiooutput"; });
+      if (mode === "mic") populateSelects(micDevices, "Microphone");
+      else if (mode === "cam") populateSelects(camDevices, "Camera");
+      else populateSelects(spkDevices, "Speaker");
+      updateNames();
+    }).catch(function () {});
+  }
+  function populateSelects(devs, label) {
+    var single = devs.length < 2;
+    var spkOff = (mode === "spk" && !supportsSinkId);
+    singleNotice.hidden = !single || spkOff;
+    singleNotice.textContent = "We only found one " + label.toLowerCase() + ". Plug in a second one to compare.";
+    compareCard.hidden = (mode !== "mic") || single;
+    listenCard.hidden = (mode !== "mic") || single;
+    cameraCard.hidden = (mode !== "cam") || single;
+    speakerCard.hidden = (mode !== "spk") || (single && !spkOff);
+    if (mode === "spk") { spkUnsupported.hidden = supportsSinkId; spkPlayer.style.display = spkOff ? "none" : ""; }
+    if (spkOff) { fill(selA, devs, selA.value, label); fill(selB, devs, firstDistinct(devs, selA.value), label); return; }
+    if (single) return;
+    fill(selA, devs, selA.value || (devs[0] && devs[0].deviceId), label);
+    var wantB = selB.value && selB.value !== selA.value ? selB.value : firstDistinct(devs, selA.value);
+    fill(selB, devs, wantB, label);
+  }
+  function fill(sel, devs, want, label) {
+    sel.innerHTML = ""; sel.disabled = false;
+    devs.forEach(function (d, i) { var o = document.createElement("option"); o.value = d.deviceId; o.textContent = d.label || (label + " " + (i + 1)); sel.appendChild(o); });
+    if (want && devs.some(function (d) { return d.deviceId === want; })) sel.value = want;
+  }
+  function firstDistinct(devs, notId) { for (var i = 0; i < devs.length; i++) if (devs[i].deviceId !== notId) return devs[i].deviceId; return devs[0] && devs[0].deviceId; }
+  function updateNames() {
+    var arr = mode === "mic" ? micDevices : mode === "cam" ? camDevices : spkDevices;
+    var find = function (id) { for (var i = 0; i < arr.length; i++) if (arr[i].deviceId === id) return arr[i].label; return ""; };
+    var la = find(selA.value), lb = find(selB.value);
+    if (mode === "mic") { M.a.els.name.textContent = la || "Microphone A"; M.b.els.name.textContent = lb || "Microphone B"; }
+    else if (mode === "cam") { $("camNameA").textContent = la || "Camera A"; $("camNameB").textContent = lb || "Camera B"; }
+  }
+  function ensureDistinct(changed) {
+    if (selA.value && selA.value === selB.value) {
+      var devs = mode === "mic" ? micDevices : mode === "cam" ? camDevices : spkDevices;
+      var other = changed === "a" ? selB : selA;
+      var alt = firstDistinct(devs, selA.value);
+      if (alt && alt !== selA.value) other.value = alt;
+    }
+  }
+  function persist() { try { localStorage.setItem("greenlight.compare", JSON.stringify({ a: selA.value, b: selB.value })); } catch (e) {} }
+  function loadPersisted() { try { var d = JSON.parse(localStorage.getItem("greenlight.compare") || "{}"); return d; } catch (e) { return {}; } }
+
+  // ---- Camera mode ----
+  var camState = { a: cam("a"), b: cam("b") }, camRaf = 0, camRunning = false, camBriTimer = 0;
+  function cam(side) { var U = side.toUpperCase(); return { side: side, stream: null, track: null, errored: false, els: { vid: $("vid" + U), chip: $("camResChip" + U), res: $("camRes" + U), fps: $("camFps" + U), ar: $("camAr" + U), bri: $("camBri" + U), err: $("camErr" + U) }, w: 0, h: 0, fpsVal: 0, briVal: null }; }
+  function stopCamSide(c) { if (c.track) { try { c.track.stop(); } catch (e) {} c.track = null; } if (c.els.vid) c.els.vid.srcObject = null; c.stream = null; c.errored = false; }
+  function openBothCams() {
+    if (!bothChosen()) return;
+    var gen = ++openCamGen;
+    stopCamLoop();
+    SIDES.forEach(function (s) { stopCamSide(camState[s]); });
+    setVerdict("neutral", "Cameras are yours to judge", "The numbers can't score picture quality — compare the previews.");
+    var open = function (c, id) {
+      return gUM({ video: { deviceId: { exact: id } } }).then(function (s) {
+        if (gen !== openCamGen) { stopStream(s); return; }
+        c.stream = s; c.track = s.getVideoTracks()[0]; c.els.vid.srcObject = s; c.errored = false; c.els.err.style.display = "none";
+        var p = c.els.vid.play(); if (p && p.catch) p.catch(function () {});
+        c.els.vid.onloadedmetadata = function () { readCamSpecs(c); };
+        readCamSpecs(c);
+      }).catch(function (e) { if (gen !== openCamGen) return; c.errored = true; c.els.err.textContent = "This camera is unavailable (" + classify(e) + ")."; c.els.err.style.display = "block"; });
+    };
+    Promise.all([open(camState.a, selA.value), open(camState.b, selB.value)]).then(function () { if (gen !== openCamGen) return; startCamLoop(); refreshDevices(); updateCamWinners(); });
+  }
+  function readCamSpecs(c) {
+    if (!c.track || !c.track.getSettings) return;
+    var s = c.track.getSettings();
+    c.w = s.width || c.els.vid.videoWidth || 0; c.h = s.height || c.els.vid.videoHeight || 0; c.fpsVal = s.frameRate || 0;
+    c.els.res.textContent = c.w && c.h ? (c.w + " × " + c.h) : "—";
+    c.els.fps.textContent = c.fpsVal ? (Math.round(c.fpsVal) + " fps") : "—";
+    c.els.ar.textContent = (c.w && c.h) ? ratio(c.w, c.h) : "—";
+    if (c.w && c.h) { c.els.chip.textContent = c.w + " × " + c.h; c.els.chip.hidden = false; }
+    updateCamWinners();
+  }
+  function ratio(w, h) { var g = gcd(w, h); var rw = w / g, rh = h / g; if (rw > 40 || rh > 40) { var r = w / h; if (Math.abs(r - 16 / 9) < 0.05) return "16:9"; if (Math.abs(r - 4 / 3) < 0.05) return "4:3"; return r.toFixed(2) + ":1"; } return rw + ":" + rh; }
+  function gcd(a, b) { while (b) { var t = b; b = a % b; a = t; } return a; }
+  function updateCamWinners() {
+    var A = camState.a, B = camState.b;
+    var pxA = A.w * A.h, pxB = B.w * B.h;
+    var bothRes = pxA > 0 && pxB > 0, bothFps = A.fpsVal > 0 && B.fpsVal > 0;
+    $("winResA").classList.toggle("show", bothRes && pxA > pxB);
+    $("winResB").classList.toggle("show", bothRes && pxB > pxA);
+    $("winFpsA").classList.toggle("show", bothFps && A.fpsVal > B.fpsVal + 1);
+    $("winFpsB").classList.toggle("show", bothFps && B.fpsVal > A.fpsVal + 1);
+    var parts = [];
+    if (pxA !== pxB && pxA && pxB) parts.push("Camera " + (pxA > pxB ? "A" : "B") + " is sharper");
+    if (Math.abs(A.fpsVal - B.fpsVal) > 1 && A.fpsVal && B.fpsVal) parts.push("Camera " + (A.fpsVal > B.fpsVal ? "A" : "B") + " runs smoother");
+    if (parts.length) setVerdict("neutral", "Cameras are yours to judge", parts.join("; ") + " — but only your eyes can judge the picture.");
+  }
+  var briCanvas = null;
+  function sampleBrightness() {
+    if (!briCanvas) { briCanvas = document.createElement("canvas"); briCanvas.width = 32; briCanvas.height = 18; }
+    var ctx = briCanvas.getContext("2d");
+    SIDES.forEach(function (s) {
+      var c = camState[s]; if (c.errored || !c.els.vid.videoWidth) return;
+      try {
+        ctx.drawImage(c.els.vid, 0, 0, 32, 18);
+        var d = ctx.getImageData(0, 0, 32, 18).data, sum = 0;
+        for (var i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        c.briVal = Math.round((sum / (d.length / 4)) / 255 * 100);
+        c.els.bri.textContent = c.briVal + " / 100";
+      } catch (e) { c.els.bri.textContent = "—"; }
+    });
+  }
+  function startCamLoop() { camRunning = true; if (!camBriTimer) camBriTimer = setInterval(sampleBrightness, 600); }
+  function stopCamLoop() { camRunning = false; if (camBriTimer) { clearInterval(camBriTimer); camBriTimer = 0; } }
+
+  // ---- Speaker A/B (subjective: play the same clip through each output) ----
+  function encodeWav(samples, sr, ch) {
+    var n = samples.length, buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+    function str(o, s) { for (var i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); }
+    str(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); str(8, "WAVE");
+    str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, ch, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * ch * 2, true); dv.setUint16(32, ch * 2, true); dv.setUint16(34, 16, true);
+    str(36, "data"); dv.setUint32(40, n * 2, true);
+    var off = 44; for (var i = 0; i < n; i++) { var v = samples[i]; v = v < -1 ? -1 : (v > 1 ? 1 : v); dv.setInt16(off, v < 0 ? v * 0x8000 : v * 0x7FFF, true); off += 2; }
+    return new Blob([buf], { type: "audio/wav" });
+  }
+  // A ~5s stereo "sound check": chord pad + bass pulses + a high sweep, panning L<->R,
+  // so the user can judge bass, clarity and stereo on each speaker.
+  function makeSpeakerClip() {
+    var sr = 44100, dur = 5.0, n = Math.floor(sr * dur), ch = 2, out = new Float32Array(n * ch);
+    var chord = [220, 277.18, 329.63, 440];
+    for (var i = 0; i < n; i++) {
+      var t = i / sr, env = Math.min(1, t / 0.05) * Math.min(1, (dur - t) / 0.35), s = 0;
+      for (var k = 0; k < chord.length; k++) s += Math.sin(2 * Math.PI * chord[k] * t) * 0.075;
+      var beat = t % 1.0; s += Math.sin(2 * Math.PI * 110 * t) * 0.20 * Math.exp(-beat * 5);
+      s += Math.sin(2 * Math.PI * (2000 + 1400 * Math.sin(2 * Math.PI * 0.2 * t)) * t) * 0.035;
+      s *= env;
+      var pan = 0.5 + 0.45 * Math.sin(2 * Math.PI * 0.15 * t);
+      out[i * 2] = s * (1 - pan) * 1.5; out[i * 2 + 1] = s * pan * 1.5;
+    }
+    return encodeWav(out, sr, ch);
+  }
+  function spkCur() { return spk.active === "a" ? spkAudioA : spkAudioB; }
+  // setSinkId is sticky, so route each element to its output ONCE (on open / device
+  // change) — never right before play(), which can defer/block the playback.
+  function applySpkSinks() {
+    if (!supportsSinkId) return;
+    if (spkAudioA.setSinkId && selA.value && selA.value !== "—") spkAudioA.setSinkId(selA.value).catch(function () {});
+    if (spkAudioB.setSinkId && selB.value && selB.value !== "—") spkAudioB.setSinkId(selB.value).catch(function () {});
+  }
+  function spkSetPlayIcon(on) { spkPlay.classList.toggle("is-playing", !!on); spkPlay.setAttribute("aria-label", on ? "Pause" : "Play"); }
+  function spkSetTab(side) {
+    spk.active = side;
+    var aOn = spkTabA.dataset.side === side, bOn = spkTabB.dataset.side === side;
+    spkTabA.setAttribute("data-active", aOn ? "true" : "false"); spkTabA.setAttribute("aria-pressed", aOn ? "true" : "false");
+    spkTabB.setAttribute("data-active", bOn ? "true" : "false"); spkTabB.setAttribute("aria-pressed", bOn ? "true" : "false");
+  }
+  function spkSwitchTo(side) {
+    if (side === spk.active) return;
+    var from = spkCur(), t = from.currentTime || 0, wasPlaying = !from.paused;
+    from.pause(); spkSetTab(side); var to = spkCur();
+    try { to.currentTime = t; } catch (e) {}
+    if (wasPlaying) { var p = to.play(); if (p && p.catch) p.catch(function () { spkSetPlayIcon(false); }); }
+    spkSetPlayIcon(!to.paused); // sync icon to the newly-active element
+  }
+  function spkPlayPause() {
+    var el = spkCur();
+    if (el.paused) { if (spk.knownDur && el.currentTime >= spk.knownDur - 0.05) { try { el.currentTime = 0; } catch (e) {} } var p = el.play(); if (p && p.catch) p.catch(function () {}); }
+    else el.pause();
+  }
+  function spkRestartFn() { var el = spkCur(); try { el.currentTime = 0; } catch (e) {} var p = el.play(); if (p && p.catch) p.catch(function () {}); }
+  function spkResetPlayhead() { try { spkAudioA.pause(); spkAudioB.pause(); spkAudioA.currentTime = 0; spkAudioB.currentTime = 0; } catch (e) {} spkSeek.value = "0"; spkTimeCur.textContent = "0:00"; spkSetPlayIcon(false); }
+  function spkOnTimeUpdate() { var el = spkCur(), d = spk.knownDur || el.duration || 0, c = el.currentTime || 0; spkTimeCur.textContent = fmtClock(c); if (!spk.seeking && d > 0 && isFinite(d)) spkSeek.value = String(Math.max(0, Math.min(1000, Math.round(c / d * 1000)))); }
+  function spkOnSeek() { spk.seeking = true; var d = spk.knownDur || spkCur().duration || 0; if (d > 0) { var t = (Number(spkSeek.value) / 1000) * d; spkTimeCur.textContent = fmtClock(t); try { spkCur().currentTime = t; } catch (e) {} } }
+  function spkApplyLabels() {
+    if (spk.blindMap) { spkTabA.textContent = "Sample 1"; spkTabB.textContent = "Sample 2"; spkWhichA.textContent = "Sample 1"; spkWhichB.textContent = "Sample 2"; spkWhichQ.textContent = "Which sample sounded better?"; }
+    else { spkTabA.textContent = "Speaker A"; spkTabB.textContent = "Speaker B"; spkWhichA.textContent = "Speaker A"; spkWhichB.textContent = "Speaker B"; spkWhichQ.textContent = "Which sounded better?"; }
+    spkTabA.dataset.side = spk.blindMap ? spk.blindMap.one : "a";
+    spkTabB.dataset.side = spk.blindMap ? spk.blindMap.two : "b";
+    spkWhichA.dataset.side = spk.blindMap ? spk.blindMap.one : "a";
+    spkWhichB.dataset.side = spk.blindMap ? spk.blindMap.two : "b";
+    spkSetTab("a");
+  }
+  function spkAnswerWhich(side) {
+    spk.picked = side;
+    if (side === "tie") { spkReveal.textContent = spk.blindMap ? "You called it a tie." : "Fair enough — a close call."; spkReveal.classList.add("show"); setVerdict("neutral", "Speakers are yours to judge", "Too close to call — either will do."); return; }
+    var name = side.toUpperCase();
+    spkReveal.textContent = spk.blindMap ? ("That was Speaker " + name + " — nice.") : ("You preferred Speaker " + name + ".");
+    spkReveal.classList.add("show");
+    setVerdict("good", "You preferred Speaker " + name, "Set that as your speaker before your call.");
+  }
+  function openBothSpeakers() {
+    if (!supportsSinkId || !bothChosen()) return;
+    spk.picked = null; spkReveal.classList.remove("show");
+    spk.blindMap = spkBlind.checked ? (Math.random() < 0.5 ? { one: "b", two: "a" } : { one: "a", two: "b" }) : null;
+    spkApplyLabels();
+    applySpkSinks(); spkResetPlayhead();
+    setVerdict("neutral", "Speakers are yours to judge", "Play the same clip through each and pick the one that sounds better.");
+  }
+  function teardownSpkMode() { try { spkAudioA.pause(); spkAudioB.pause(); } catch (e) {} }
+  function initSpeaker() {
+    try { spk.clipUrl = URL.createObjectURL(makeSpeakerClip()); } catch (e) { spk.clipUrl = null; }
+    if (spk.clipUrl) { spkAudioA.src = spk.clipUrl; spkAudioB.src = spk.clipUrl; }
+    var onSpkMeta = function (ev) { var d = ev.target.duration; if (isFinite(d) && d > 0 && !spk.knownDur) { spk.knownDur = d; spkTimeDur.textContent = fmtClock(d); } };
+    spkAudioA.addEventListener("loadedmetadata", onSpkMeta);
+    spkAudioB.addEventListener("loadedmetadata", onSpkMeta);
+    spkTabA.addEventListener("click", function () { spkSwitchTo(spkTabA.dataset.side); });
+    spkTabB.addEventListener("click", function () { spkSwitchTo(spkTabB.dataset.side); });
+    spkPlay.addEventListener("click", spkPlayPause);
+    spkRestart.addEventListener("click", spkRestartFn);
+    spkSeek.addEventListener("input", spkOnSeek);
+    spkSeek.addEventListener("change", function () { spk.seeking = false; });
+    [spkAudioA, spkAudioB].forEach(function (el) {
+      el.addEventListener("play", function () { if (el === spkCur()) spkSetPlayIcon(true); });
+      el.addEventListener("pause", function () { if (el === spkCur()) spkSetPlayIcon(false); });
+      el.addEventListener("ended", function () { if (el === spkCur()) { spkSetPlayIcon(false); spkSeek.value = "1000"; spkTimeCur.textContent = spkTimeDur.textContent; } });
+      el.addEventListener("timeupdate", function () { if (el === spkCur()) spkOnTimeUpdate(); });
+    });
+    spkWhichA.addEventListener("click", function () { spkAnswerWhich(spkWhichA.dataset.side); });
+    spkWhichB.addEventListener("click", function () { spkAnswerWhich(spkWhichB.dataset.side); });
+    spkWhichTie.addEventListener("click", function () { spkAnswerWhich("tie"); });
+    spkBlind.addEventListener("change", function () {
+      spk.blindMap = spkBlind.checked ? (Math.random() < 0.5 ? { one: "b", two: "a" } : { one: "a", two: "b" }) : null;
+      spkApplyLabels(); spk.picked = null; spkReveal.classList.remove("show"); spkResetPlayhead();
+    });
+  }
+
+  // ---- Mode switch ----
+  function setMode(m) {
+    if (m === mode) return;
+    if (mode === "mic") teardownMicMode(); else if (mode === "cam") teardownCamMode(); else teardownSpkMode();
+    mode = m;
+    modeMic.setAttribute("data-active", m === "mic" ? "true" : "false"); modeMic.setAttribute("aria-pressed", m === "mic" ? "true" : "false");
+    modeSpk.setAttribute("data-active", m === "spk" ? "true" : "false"); modeSpk.setAttribute("aria-pressed", m === "spk" ? "true" : "false");
+    modeCam.setAttribute("data-active", m === "cam" ? "true" : "false"); modeCam.setAttribute("aria-pressed", m === "cam" ? "true" : "false");
+    if (m === "mic") {
+      headSub.textContent = "Find out which mic sounds better on calls — speak once, we listen on both.";
+      pickLabelA.textContent = "Microphone A"; pickLabelB.textContent = "Microphone B";
+      pickerHelp.textContent = "Pick two different microphones. The same device can't be opened twice.";
+      setVerdict("checking", "Getting both microphones ready…", "We open both at once so one voice tests both.");
+      refreshDevices().then(function () { if (bothChosen()) openBothMics(); });
+    } else if (m === "cam") {
+      headSub.textContent = "Put two cameras side by side and compare their specs and picture.";
+      pickLabelA.textContent = "Camera A"; pickLabelB.textContent = "Camera B";
+      pickerHelp.textContent = "Pick two different cameras. The same device can't be opened twice.";
+      refreshDevices().then(function () { if (bothChosen()) openBothCams(); });
+    } else {
+      headSub.textContent = "Play the same sound through two speakers and pick the one you like.";
+      pickLabelA.textContent = "Speaker A"; pickLabelB.textContent = "Speaker B";
+      pickerHelp.textContent = "Pick two different speakers or outputs. We route the same clip to each.";
+      if (!supportsSinkId) setVerdict("problem", "Speaker switching isn't available here", "Chrome or Edge can route audio to a chosen speaker — this browser can't.");
+      else setVerdict("neutral", "Speakers are yours to judge", "Pick two outputs, then play the same clip through each.");
+      refreshDevices().then(function () { if (bothChosen()) openBothSpeakers(); });
+    }
+  }
+  function teardownMicMode() { stopLoop(); if (calibrating) finishCalibration(); SIDES.forEach(function (s) { stopMicSide(M[s]); if (M[s].recUrl) { URL.revokeObjectURL(M[s].recUrl); M[s].recUrl = null; } }); hideAbPlayer(); humanPick = null; app.classList.remove("needs-gesture"); }
+  function teardownCamMode() { stopCamLoop(); SIDES.forEach(function (s) { stopCamSide(camState[s]); }); }
+
+  // ---- Wire ----
+  function onSelectChange(side) {
+    ensureDistinct(side); persist(); updateNames();
+    if (mode === "mic") openBothMics(); else if (mode === "cam") openBothCams(); else openBothSpeakers();
+  }
+  function wire() {
+    modeMic.addEventListener("click", function () { setMode("mic"); });
+    modeSpk.addEventListener("click", function () { setMode("spk"); });
+    modeCam.addEventListener("click", function () { setMode("cam"); });
+    selA.addEventListener("change", function () { onSelectChange("a"); });
+    selB.addEventListener("change", function () { onSelectChange("b"); });
+    swapBtn.addEventListener("click", function () { var a = selA.value, b = selB.value; if (a && b) { selA.value = b; selB.value = a; onSelectChange("a"); } });
+    calibBtn.addEventListener("click", startCalibration);
+    armA.addEventListener("click", unlockAudio); armB.addEventListener("click", unlockAudio);
+    recBtn.addEventListener("click", function () { if (recBtn.classList.contains("recording")) stopRecordingBoth(); else startRecordingBoth(); });
+    recAgainBtn.addEventListener("click", function () { hideAbPlayer(); startRecordingBoth(); });
+    tabA.addEventListener("click", function () { switchTo(tabA.dataset.side); });
+    tabB.addEventListener("click", function () { switchTo(tabB.dataset.side); });
+    playBtn.addEventListener("click", playPause);
+    restartBtn.addEventListener("click", restart);
+    seek.addEventListener("input", onSeek);
+    seek.addEventListener("change", function () { seeking = false; });
+    [playAudioA, playAudioB].forEach(function (el) {
+      el.addEventListener("play", function () { if (el === curEl()) setPlayIcon(true); });
+      el.addEventListener("pause", function () { if (el === curEl()) setPlayIcon(false); });
+      el.addEventListener("ended", function () { if (el === curEl()) { setPlayIcon(false); seek.value = "1000"; timeCur.textContent = timeDur.textContent; } });
+      el.addEventListener("timeupdate", function () { if (el === curEl()) onTimeUpdate(); });
+    });
+    whichA.addEventListener("click", function () { answerWhich(whichA.dataset.side); });
+    whichB.addEventListener("click", function () { answerWhich(whichB.dataset.side); });
+    whichTie.addEventListener("click", function () { answerWhich("tie"); });
+    againBtn.addEventListener("click", function () { if (mode === "mic") { teardownMicMode(); openBothMics(); } else if (mode === "cam") { teardownCamMode(); openBothCams(); } else { openBothSpeakers(); } });
+    addGestureUnlock();
+    if (mediaOK && navigator.mediaDevices.addEventListener) { try { navigator.mediaDevices.addEventListener("devicechange", function () { refreshDevices(); }); } catch (e) {} }
+    window.addEventListener("pagehide", function () {
+      teardownMicMode(); teardownCamMode(); teardownSpkMode();
+      if (M.a.recUrl) URL.revokeObjectURL(M.a.recUrl); if (M.b.recUrl) URL.revokeObjectURL(M.b.recUrl);
+      if (spk.clipUrl) URL.revokeObjectURL(spk.clipUrl);
+      if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+    });
+  }
+
+  // ---- Init ----
+  function init() {
+    buildMeter(M.a); buildMeter(M.b);
+    initSpeaker();
+    wire();
+    if (!supportsRecording) enableRecordUI();
+    if (window.isSecureContext === false || !mediaOK) {
+      verdict.setAttribute("data-state", "problem");
+      verdictTitle.textContent = "Comparing needs a secure connection";
+      verdictSub.textContent = "Open this page over https:// or on localhost.";
+      pickerCard.hidden = true; compareCard.hidden = true; listenCard.hidden = true; cameraCard.hidden = true; speakerCard.hidden = true;
+      globalMsg.hidden = false; return;
+    }
+    // Need one permission grant to read device labels + open exact devices.
+    gUM({ audio: true }).then(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); }).catch(function () {})
+      .then(function () {
+        var saved = loadPersisted();
+        return refreshDevices().then(function () {
+          if (micDevices.length >= 2) {
+            if (saved.a && micDevices.some(function (d) { return d.deviceId === saved.a; })) selA.value = saved.a;
+            if (saved.b && saved.b !== selA.value && micDevices.some(function (d) { return d.deviceId === saved.b; })) selB.value = saved.b;
+            ensureDistinct("a"); updateNames();
+            openBothMics();
+          }
+        });
+      });
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>

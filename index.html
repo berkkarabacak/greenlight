@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<meta name="theme-color" content="#F7F8FA" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0B0D10" media="(prefers-color-scheme: dark)" />
+<meta name="description" content="Test your camera, microphone and speaker before your next video call — record your voice and play it back. Runs entirely in your browser; recordings never leave your device." />
+<title>GreenLight — Test your mic, speaker & camera</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2322C55E'/%3E%3Cpath d='M10 16.5l4 4 8-8.5' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+<style>
+  :root {
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --surface-2: #F2F4F7;
+    --border: #E4E7EC;
+    --text: #1A2027;
+    --text-2: #5B6470;
+    --muted: #8A929E;
+    --accent: #4F46E5;
+    --success: #12855F;
+    --success-strong: #10B981;
+    --success-bg: #E7F6EF;
+    --warning: #B7791F;
+    --warning-strong: #F59E0B;
+    --warning-bg: #FBF3E2;
+    --error: #C0362C;
+    --error-strong: #EF4444;
+    --error-bg: #FBEBE9;
+    --muted-dot: #B4BAC3;
+    --meter-track: #E9ECF1;
+    --shadow: 0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04);
+    --shadow-lift: 0 6px 20px rgba(16,24,40,0.08);
+    --radius-lg: 16px;
+    --radius-md: 10px;
+    --caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' fill='none' stroke='%238A929E' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0B0D10;
+      --surface: #16191E;
+      --surface-2: #1D2127;
+      --border: #232830;
+      --text: #F2F4F7;
+      --text-2: #9BA3AF;
+      --muted: #6B7280;
+      --accent: #6366F1;
+      --success: #22C55E;
+      --success-strong: #4ADE80;
+      --success-bg: #14361F;
+      --warning: #F59E0B;
+      --warning-strong: #FBBF24;
+      --warning-bg: #3A2A0A;
+      --error: #EF4444;
+      --error-strong: #F87171;
+      --error-bg: #3A1414;
+      --muted-dot: #3C424B;
+      --meter-track: #262B33;
+      --shadow: 0 8px 24px rgba(0,0,0,0.40);
+      --shadow-lift: 0 12px 32px rgba(0,0,0,0.50);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .app {
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: max(4vh, 18px) 20px calc(18px + env(safe-area-inset-bottom));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ---------- Verdict banner ---------- */
+  .verdict {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 22px 18px 24px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    transition: background-color .2s ease-out, border-color .2s ease-out;
+  }
+  .verdict::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: var(--vc, var(--muted-dot));
+    transition: background-color .2s ease-out;
+  }
+  .verdict[data-state="checking"] { --vc: var(--accent); }
+  .verdict[data-state="good"] { --vc: var(--success); background: var(--success-bg); border-color: color-mix(in srgb, var(--success) 24%, var(--border)); }
+  .verdict[data-state="problem"] { --vc: var(--warning); background: var(--warning-bg); border-color: color-mix(in srgb, var(--warning) 24%, var(--border)); }
+  @media (prefers-color-scheme: dark) {
+    .verdict[data-state="good"]::after {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(120% 140% at 12% 50%, color-mix(in srgb, var(--success) 8%, transparent), transparent 60%);
+      pointer-events: none;
+    }
+  }
+
+  .verdict-main { display: flex; align-items: center; gap: 16px; min-width: 0; }
+  .verdict-dot {
+    flex: none;
+    width: 14px; height: 14px; border-radius: 999px;
+    background: var(--vc, var(--muted-dot));
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--vc, var(--muted-dot)) 16%, transparent);
+    transition: background-color .2s ease-out, box-shadow .2s ease-out;
+  }
+  .verdict[data-state="checking"] .verdict-dot { animation: pulse 1.3s ease-in-out infinite; }
+  .verdict-text { min-width: 0; }
+  .verdict-title {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .verdict-sub { margin: 3px 0 0; font-size: 14px; color: var(--text-2); }
+  .verdict-sub .end-line { color: var(--success); font-weight: 600; }
+
+  .verdict-aside { display: flex; align-items: center; gap: 12px; flex: none; }
+  .privacy-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+    color: var(--success);
+    background: var(--success-bg);
+    border: 1px solid color-mix(in srgb, var(--success) 26%, transparent);
+    border-radius: 999px;
+  }
+  .privacy-pill svg { width: 12px; height: 12px; }
+
+  .verdict-action {
+    display: none;
+    flex: none;
+    padding: 10px 18px;
+    font-size: 14px; font-weight: 600;
+    color: #fff; background: var(--accent);
+    border: none; border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: filter .15s ease-out, transform .1s ease-out;
+  }
+  .verdict-action:hover { filter: brightness(1.06); }
+  .verdict-action:active { transform: scale(.98); }
+  .verdict.show-action .verdict-action { display: inline-block; }
+  .verdict.show-action .privacy-pill { display: none; }
+
+  /* ---------- Device grid ---------- */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 16px;
+    min-height: 320px;
+    transition: box-shadow .2s ease-out, border-color .2s ease-out;
+  }
+  .card[data-status="pass"] { border-color: color-mix(in srgb, var(--success) 30%, var(--border)); }
+  .card.is-error[data-status="blocked"],
+  .card.is-error[data-status="busy"] { border-color: color-mix(in srgb, var(--warning) 34%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent); }
+  .card.is-error[data-status="nodevice"],
+  .card.is-error[data-status="error"],
+  .card.is-error[data-status="fail"] { border-color: color-mix(in srgb, var(--error) 34%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 12%, transparent); }
+
+  .card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .card-title { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; }
+  .card-title svg { width: 18px; height: 18px; color: var(--text-2); }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 999px;
+    background: var(--muted-dot);
+    transition: background-color .18s ease-out, transform .18s ease-out;
+  }
+  .card[data-status="pass"] .status-dot { background: var(--success); transform: scale(1); animation: pop .25s ease-out; }
+  .card[data-status="listening"] .status-dot,
+  .card[data-status="checking"] .status-dot { background: var(--muted-dot); animation: pulse 1.3s ease-in-out infinite; }
+  .card[data-status="blocked"] .status-dot,
+  .card[data-status="busy"] .status-dot,
+  .card[data-status="awaiting"] .status-dot { background: var(--warning); }
+  .card[data-status="nodevice"] .status-dot,
+  .card[data-status="error"] .status-dot,
+  .card[data-status="fail"] .status-dot { background: var(--error); }
+
+  .card-live { position: relative; flex: 1; display: flex; min-height: 168px; }
+  .live-normal { flex: 1; display: flex; }
+  .live-fix { display: none; flex: 1; flex-direction: column; justify-content: center; gap: 14px; padding: 4px; text-align: center; }
+  .card.is-error .live-normal { display: none; }
+  .card.is-error .live-fix { display: flex; }
+  .fix-msg { font-size: 14px; color: var(--text-2); margin: 0; }
+  .fix-icon { width: 34px; height: 34px; margin: 0 auto; color: var(--warning); }
+  .card[data-status="nodevice"] .fix-icon,
+  .card[data-status="error"] .fix-icon,
+  .card[data-status="fail"] .fix-icon { color: var(--error); }
+
+  /* Camera */
+  .video-wrap {
+    position: relative; flex: 1;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--surface-2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .video-wrap video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    display: block;
+    background: #0b0d10;
+  }
+  .video-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted-dot); }
+  .video-placeholder svg { width: 40px; height: 40px; }
+  .card[data-status="pass"] .video-placeholder { display: none; }
+  .res-chip {
+    position: absolute; left: 8px; bottom: 8px;
+    padding: 3px 8px; font-size: 12px; font-weight: 600;
+    color: #fff; background: rgba(11,13,16,.62);
+    border-radius: 999px; letter-spacing: .01em;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Mic meter */
+  .meter-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; padding: 8px 2px; }
+  .mic-arm {
+    display: none;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600;
+    color: #fff; background: var(--accent); border: none; border-radius: 999px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .card.needs-gesture .mic-arm { display: inline-flex; align-items: center; }
+  .card.needs-gesture .meter { opacity: .3; }
+  .meter { display: flex; align-items: center; gap: 3px; width: 100%; height: 56px; }
+  .bar {
+    flex: 1; height: 22%; border-radius: 3px;
+    background: var(--meter-track);
+    transition: background-color .06s linear, height .08s ease-out;
+  }
+  .bar.lit { background: var(--success); height: 62%; }
+  .bar.lit.hot { background: var(--warning-strong); height: 78%; }
+  @media (prefers-reduced-motion: reduce) { .bar { transition: background-color .06s linear; } }
+
+  /* Mic — record control */
+  .mic-record { display: none; margin-top: 10px; justify-content: center; }
+  #micCard[data-status="listening"] .mic-record,
+  #micCard[data-status="pass"] .mic-record { display: flex; }
+  .record-btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 600;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 999px;
+    cursor: pointer; transition: background-color .15s, border-color .15s, transform .1s;
+  }
+  .record-btn:hover { background: var(--border); }
+  .record-btn:active { transform: scale(.98); }
+  .record-btn:disabled { opacity: .5; cursor: default; }
+  .rec-ico { width: 12px; height: 12px; border-radius: 999px; background: var(--error-strong); transition: border-radius .15s, transform .15s; }
+  .record-btn.recording { color: var(--error); border-color: color-mix(in srgb, var(--error) 40%, var(--border)); }
+  .record-btn.recording .rec-ico { border-radius: 2px; animation: pulse 1s ease-in-out infinite; }
+
+  /* Speaker — media player */
+  .player { flex: 1; display: flex; flex-direction: column; gap: 12px; justify-content: center; }
+  .player-source { display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .src-tab {
+    flex: 1; padding: 6px 8px; font: inherit; font-size: 12px; font-weight: 600;
+    color: var(--text-2); background: transparent; border: none; border-radius: 999px; cursor: pointer;
+    transition: background-color .15s, color .15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .src-tab[data-active="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  .src-tab:disabled { opacity: .45; cursor: default; }
+
+  .transport { display: flex; align-items: center; justify-content: center; gap: 14px; }
+  .tp-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; border-radius: 999px; transition: background-color .15s, filter .15s, transform .1s;
+  }
+  .tp-btn:hover { background: var(--border); }
+  .tp-btn:active { transform: scale(.94); }
+  .tp-restart { width: 40px; height: 40px; }
+  .tp-restart svg { width: 19px; height: 19px; }
+  .tp-play { width: 54px; height: 54px; color: #fff; background: var(--accent); border-color: var(--accent); }
+  .tp-play:hover { background: var(--accent); filter: brightness(1.08); }
+  .tp-play svg { width: 24px; height: 24px; }
+  .tp-play .ico-pause { display: none; }
+  .tp-play.is-playing .ico-play { display: none; }
+  .tp-play.is-playing .ico-pause { display: inline; }
+
+  .seek {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin: 0;
+    background: var(--meter-track); border-radius: 999px; cursor: pointer;
+  }
+  .seek::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 999px; background: var(--accent); border: 2px solid var(--surface); cursor: pointer; }
+  .seek::-moz-range-thumb { width: 13px; height: 13px; border-radius: 999px; background: var(--accent); border: 2px solid var(--surface); cursor: pointer; }
+  .seek::-moz-range-track { height: 6px; border-radius: 999px; background: var(--meter-track); }
+  .time-row { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  .player-foot { min-height: 22px; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .pf { display: none; align-items: center; justify-content: center; gap: 8px; font-size: 13px; }
+  #speakerCard[data-status="ready"]:not(.has-played) .pf-hint { display: flex; color: var(--text-2); }
+  #speakerCard[data-status="ready"].has-played .pf-confirm { display: flex; }
+  #speakerCard[data-status="pass"] .pf-pass { display: flex; color: var(--success); font-weight: 600; }
+  #speakerCard[data-status="fail"] .pf-fail { display: flex; color: var(--warning); }
+  #speakerCard[data-status="fail"] .status-dot { background: var(--warning); }
+  .pf-pass svg { width: 18px; height: 18px; }
+  .pf-q { color: var(--text-2); }
+  .pf-btn { padding: 6px 15px; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; cursor: pointer; border: 1px solid var(--border); transition: filter .15s, background-color .15s, transform .1s; }
+  .pf-btn:active { transform: scale(.97); }
+  .pf-yes { color: #fff; background: var(--success); border-color: var(--success); }
+  .pf-yes:hover { filter: brightness(1.06); }
+  .pf-no { color: var(--text); background: var(--surface); }
+  .pf-no:hover { background: var(--surface-2); }
+
+  .retry-btn {
+    align-self: center;
+    padding: 9px 18px; font-size: 14px; font-weight: 600;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    cursor: pointer; transition: background-color .15s, transform .1s;
+  }
+  .retry-btn:hover { background: var(--border); }
+  .retry-btn:active { transform: scale(.98); }
+
+  /* Card footer */
+  .card-foot { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .select-wrap { position: relative; }
+  .device-select {
+    width: 100%;
+    appearance: none; -webkit-appearance: none;
+    padding: 9px 34px 9px 12px;
+    font: inherit; font-size: 13px;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    cursor: pointer;
+    background-image: var(--caret);
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    text-overflow: ellipsis;
+  }
+  .device-select:disabled { opacity: .55; cursor: default; }
+  .card-status { margin: 0; font-size: 13px; color: var(--text-2); min-height: 18px; }
+  .card[data-status="pass"] .card-status { color: var(--success); font-weight: 500; }
+  .speaker-note { margin: 0; font-size: 12px; color: var(--muted); }
+
+  /* App footer */
+  .app-foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    flex-wrap: wrap;
+    font-size: 13px; color: var(--muted);
+    padding: 2px 4px;
+  }
+  .app-foot .foot-links { display: inline-flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .app-foot .privacy-line { display: inline-flex; align-items: center; gap: 7px; }
+  .app-foot .privacy-line svg { width: 13px; height: 13px; }
+  .app-foot .brand { font-weight: 600; color: var(--text-2); }
+  .ghost-link {
+    background: none; border: none; padding: 4px 0; cursor: pointer;
+    color: var(--text-2); font: inherit; font-weight: 600; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ghost-link:hover { color: var(--text); }
+  .ghost-link svg { width: 14px; height: 14px; }
+
+  /* Global message (insecure / unsupported) */
+  .global-msg {
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    gap: 12px; padding: 48px 24px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+  }
+  .global-msg svg { width: 44px; height: 44px; color: var(--warning); }
+  .global-msg h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .global-msg p { margin: 0; font-size: 14px; color: var(--text-2); max-width: 40ch; }
+  .global-msg code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
+  .device-select:focus-visible { outline-offset: 1px; }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @keyframes pop { 0% { transform: scale(.4); } 60% { transform: scale(1.15); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .bar { transition: none; }
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 899px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+    #cameraCard { grid-column: 1 / -1; }
+    #cameraCard .card-live { min-height: 200px; max-height: 280px; }
+  }
+  @media (max-width: 599px) {
+    .app { gap: 12px; padding-top: 0; }
+    .verdict {
+      position: sticky; top: 0; z-index: 10;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      border-top: none;
+      margin: 0 -20px;
+      padding: 14px 18px 14px 20px;
+      flex-wrap: wrap;
+    }
+    .verdict-title { font-size: 22px; }
+    .verdict-aside { width: 100%; margin-top: 2px; }
+    .grid { grid-template-columns: 1fr; }
+    #cameraCard { grid-column: auto; }
+    .card { min-height: 0; }
+    #cameraCard .card-live { min-height: 180px; aspect-ratio: 16 / 9; }
+    .card-live { min-height: 140px; }
+    .pf-btn, .retry-btn, .record-btn, .device-select, .tp-restart { min-height: 44px; }
+    .tp-restart { min-width: 44px; }
+    .app-foot { justify-content: center; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<main class="app" id="app">
+
+  <!-- Verdict banner -->
+  <section class="verdict" id="verdict" data-state="checking" role="status" aria-live="polite">
+    <div class="verdict-main">
+      <span class="verdict-dot" aria-hidden="true"></span>
+      <div class="verdict-text">
+        <h1 class="verdict-title" id="verdictTitle">Checking your setup…</h1>
+        <p class="verdict-sub" id="verdictSub">Allow camera and microphone to start</p>
+      </div>
+    </div>
+    <div class="verdict-aside">
+      <span class="privacy-pill">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" opacity=".18"/><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Private — nothing leaves this device
+      </span>
+      <button class="verdict-action" id="verdictAction" type="button">Test my setup</button>
+    </div>
+  </section>
+
+  <!-- Global insecure / unsupported message -->
+  <section class="global-msg" id="globalMsg" hidden aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2L2 21h20L12 2z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 9v5M12 17.5v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <h2 id="globalMsgTitle">Testing needs a secure connection</h2>
+    <p id="globalMsgBody">Open this page over <code>https://</code> (or on <code>localhost</code>) so your browser will allow camera and microphone access.</p>
+  </section>
+
+  <!-- Device grid -->
+  <section class="grid" id="grid">
+
+    <!-- Camera -->
+    <article class="card" id="cameraCard" data-status="checking">
+      <div class="card-head">
+        <span class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="6" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M16 10l6-3v10l-6-3v-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Camera
+        </span>
+        <span class="status-dot" aria-hidden="true"></span>
+      </div>
+      <div class="card-live">
+        <div class="live-normal video-wrap">
+          <div class="video-placeholder" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M16 10l6-3v10l-6-3v-4z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          </div>
+          <video id="video" autoplay muted playsinline aria-label="Live camera preview"></video>
+          <span class="res-chip" id="resChip" hidden></span>
+        </div>
+        <div class="live-fix">
+          <svg class="fix-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v6M12 16.5v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <p class="fix-msg" id="cameraFixMsg">Camera is blocked.</p>
+          <button class="retry-btn" id="cameraRetry" type="button">Try again</button>
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="select-wrap">
+          <label class="sr-only" for="cameraSelect">Choose camera</label>
+          <select class="device-select" id="cameraSelect" disabled><option>Camera</option></select>
+        </div>
+        <p class="card-status" id="cameraStatus" role="status" aria-live="polite">Turning on your camera…</p>
+      </div>
+    </article>
+
+    <!-- Microphone -->
+    <article class="card" id="micCard" data-status="checking">
+      <div class="card-head">
+        <span class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M6 11a6 6 0 0012 0M12 17v4M9 21h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Microphone
+        </span>
+        <span class="status-dot" aria-hidden="true"></span>
+      </div>
+      <div class="card-live">
+        <div class="live-normal meter-wrap">
+          <div class="meter" id="meter" role="img" aria-label="Live microphone level"></div>
+          <button class="mic-arm" id="micArm" type="button" aria-label="Start microphone test">Tap to start</button>
+        </div>
+        <div class="live-fix">
+          <svg class="fix-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v6M12 16.5v.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <p class="fix-msg" id="micFixMsg">Microphone is blocked.</p>
+          <button class="retry-btn" id="micRetry" type="button">Try again</button>
+        </div>
+      </div>
+      <div class="mic-record" id="micRecord">
+        <button class="record-btn" id="recordBtn" type="button" aria-label="Record my voice">
+          <span class="rec-ico" aria-hidden="true"></span>
+          <span id="recordLabel">Record my voice</span>
+        </button>
+      </div>
+      <div class="card-foot">
+        <div class="select-wrap">
+          <label class="sr-only" for="micSelect">Choose microphone</label>
+          <select class="device-select" id="micSelect" disabled><option>Microphone</option></select>
+        </div>
+        <p class="card-status" id="micStatus" role="status" aria-live="polite">Say something — we're listening</p>
+      </div>
+    </article>
+
+    <!-- Speaker -->
+    <article class="card" id="speakerCard" data-status="ready">
+      <div class="card-head">
+        <span class="card-title">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Speaker
+        </span>
+        <span class="status-dot" aria-hidden="true"></span>
+      </div>
+      <div class="card-live">
+        <div class="live-normal player">
+          <div class="player-source" role="group" aria-label="Choose what to play">
+            <button class="src-tab" id="srcTone" data-active="true" aria-pressed="true" type="button">Test tone</button>
+            <button class="src-tab" id="srcRec" type="button" disabled data-active="false" aria-pressed="false">Your recording</button>
+          </div>
+          <div class="transport">
+            <button class="tp-btn tp-restart" id="restartSpBtn" type="button" aria-label="Restart from the beginning">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-2.3 5.7M20 5.5V11h-5.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="tp-btn tp-play" id="playPauseBtn" type="button" aria-label="Play">
+              <svg class="ico-play" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5.5v13l10-6.5-10-6.5z" fill="currentColor"/></svg>
+              <svg class="ico-pause" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="6.5" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/><rect x="13.9" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <div>
+            <input class="seek" id="seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek through the audio" />
+            <div class="time-row"><span id="timeCur">0:00</span><span id="timeDur">0:00</span></div>
+          </div>
+          <div class="player-foot">
+            <span class="pf pf-hint">Press play to hear the test sound</span>
+            <span class="pf pf-confirm">
+              <span class="pf-q">Hear it clearly?</span>
+              <button class="pf-btn pf-yes" id="pcYes" type="button">Yes</button>
+              <button class="pf-btn pf-no" id="pcNo" type="button">No</button>
+            </span>
+            <span class="pf pf-pass">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4 4 10-10.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Sound is working
+            </span>
+            <span class="pf pf-fail">Turn up your volume or pick another speaker, then play again.</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-foot">
+        <div class="select-wrap">
+          <label class="sr-only" for="speakerSelect">Choose speaker</label>
+          <select class="device-select" id="speakerSelect" disabled><option>Speaker</option></select>
+        </div>
+        <p class="speaker-note" id="speakerNote" hidden>Your browser picks the speaker automatically — change it in your system settings.</p>
+        <p class="card-status" id="speakerStatus" role="status" aria-live="polite">Play a test sound to check your speaker</p>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- App footer -->
+  <footer class="app-foot" id="appFoot">
+    <span class="foot-links">
+      <button class="ghost-link" id="restartBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 10-.5 4M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Run all tests again
+      </button>
+      <a class="ghost-link" href="compare.html">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h11l-3-3M17 16H6l3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Compare two devices
+      </a>
+    </span>
+    <span class="privacy-line">
+      <span class="brand">GreenLight</span> · Recordings stay on your device — nothing is uploaded.
+    </span>
+  </footer>
+
+  <audio id="speakerAudio" playsinline></audio>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---- Elements ----
+  var verdict = $("verdict"), verdictTitle = $("verdictTitle"), verdictSub = $("verdictSub"), verdictAction = $("verdictAction");
+  var grid = $("grid"), appFoot = $("appFoot"), globalMsg = $("globalMsg"), globalMsgTitle = $("globalMsgTitle"), globalMsgBody = $("globalMsgBody");
+  var cameraCard = $("cameraCard"), micCard = $("micCard"), speakerCard = $("speakerCard");
+  var video = $("video"), resChip = $("resChip");
+  var meterEl = $("meter"), micArm = $("micArm");
+  var cameraSelect = $("cameraSelect"), micSelect = $("micSelect"), speakerSelect = $("speakerSelect");
+  var cameraStatus = $("cameraStatus"), micStatus = $("micStatus"), speakerStatus = $("speakerStatus");
+  var cameraFixMsg = $("cameraFixMsg"), micFixMsg = $("micFixMsg");
+  var cameraRetry = $("cameraRetry"), micRetry = $("micRetry");
+  var micRecordRow = $("micRecord"), recordBtn = $("recordBtn"), recordLabel = $("recordLabel");
+  var srcTone = $("srcTone"), srcRec = $("srcRec");
+  var playPauseBtn = $("playPauseBtn"), restartSpBtn = $("restartSpBtn"), seek = $("seek");
+  var timeCur = $("timeCur"), timeDur = $("timeDur"), pcYes = $("pcYes"), pcNo = $("pcNo");
+  var speakerNote = $("speakerNote"), speakerAudio = $("speakerAudio");
+  var restartBtn = $("restartBtn");
+
+  // ---- Copy ----
+  var COPY = {
+    cameraChecking: "Turning on your camera…",
+    cameraPass: "Your camera looks great",
+    micNudge: "Say something — we're listening",
+    micPass: "We can hear you",
+    speakerReady: "Play a test sound to check your speaker",
+    speakerPass: "Sound is working"
+  };
+  var CAM_FIX = {
+    blocked: { msg: "Camera is blocked. Click the camera icon in your address bar and choose Allow.", status: "Camera is blocked" },
+    nodevice: { msg: "No camera detected. Plug one in, then try again.", status: "No camera detected" },
+    busy: { msg: "Your camera is in use by another app. Close it (e.g. another meeting window), then try again.", status: "Camera is in use" },
+    error: { msg: "Couldn't reach your camera. Try again.", status: "Camera unavailable" }
+  };
+  var MIC_FIX = {
+    blocked: { msg: "Microphone is blocked. Click the icon in your address bar and choose Allow.", status: "Microphone is blocked" },
+    nodevice: { msg: "No microphone detected. Check that it's plugged in.", status: "No microphone detected" },
+    busy: { msg: "Your microphone is in use by another app. Close it, then try again.", status: "Microphone is in use" },
+    error: { msg: "Couldn't reach your microphone. Try again.", status: "Microphone unavailable" }
+  };
+
+  // ---- State ----
+  var ERROR_STATUSES = { blocked: 1, nodevice: 1, busy: 1, error: 1 };
+  var S = {
+    camera: { status: "checking", track: null, stream: null, deviceId: null },
+    mic: { status: "checking", track: null, stream: null, deviceId: null, passed: false },
+    speaker: { status: "ready", deviceId: null, source: "tone" }
+  };
+  var globalBlocked = false;
+
+  var audioCtx = null, analyser = null, micSource = null, micData = null, rafId = 0, displayLevel = 0;
+
+  // Speaker media player + voice recording
+  var toneUrl = null, recUrl = null, recBlob = null, recDuration = 0, knownDur = 0, seeking = false, hasPlayed = false;
+  var mediaRecorder = null, recChunks = [], recInterval = 0, recStartTs = 0, recording = false, recDiscarded = false;
+  var REC_MAX_MS = 15000;
+  var supportsRecording = (typeof MediaRecorder !== "undefined");
+  var BAR_COUNT = 24, bars = [];
+  var supportsSinkId = typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+  var mediaOK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  var MIC_PASS_RMS = 0.025;   // speaking level threshold
+  var MIC_SCALE = 0.22;       // rms that fills the meter
+
+  function gUM(constraints) { return navigator.mediaDevices.getUserMedia(constraints); }
+
+  // ---- Helpers ----
+  function applyCard(cardEl, status) {
+    cardEl.setAttribute("data-status", status);
+    var isErr = !!ERROR_STATUSES[status] || status === "fail";
+    if (cardEl === speakerCard) isErr = false; // player stays visible; fail shown inline
+    cardEl.classList.toggle("is-error", isErr);
+  }
+  function setCameraStatusLine(t) { if (cameraStatus.textContent !== t) cameraStatus.textContent = t; }
+  function setMicStatusLine(t) { if (micStatus.textContent !== t) micStatus.textContent = t; }
+  function setSpeakerStatusLine(t) { if (speakerStatus.textContent !== t) speakerStatus.textContent = t; }
+
+  function stopTrack(t) { if (t) { try { t.stop(); } catch (e) {} } }
+
+  function classify(err) {
+    var n = err && err.name;
+    if (n === "NotAllowedError" || n === "SecurityError" || n === "PermissionDeniedError") return "blocked";
+    if (n === "NotFoundError" || n === "DevicesNotFoundError" || n === "OverconstrainedError" || n === "ConstraintNotSatisfiedError") return "nodevice";
+    if (n === "NotReadableError" || n === "TrackStartError" || n === "AbortError") return "busy";
+    return "error";
+  }
+
+  // ---- Audio context ----
+  function ensureCtx() {
+    if (!audioCtx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        try { audioCtx = new AC(); audioCtx.addEventListener("statechange", onCtxStateChange); }
+        catch (e) { audioCtx = null; }
+      }
+    }
+    return audioCtx;
+  }
+  function resumeCtx() { if (audioCtx && audioCtx.state === "suspended") { audioCtx.resume().catch(function () {}); } }
+  function unlockAudio() { ensureCtx(); resumeCtx(); }
+
+  // When the AudioContext finally reaches 'running' (after any user gesture),
+  // the live mic meter comes alive on its own — just clear the "tap to start" hint.
+  function onCtxStateChange() {
+    if (audioCtx && audioCtx.state === "running") {
+      micCard.classList.remove("needs-gesture");
+      removeGestureUnlock();
+      if (!S.mic.passed && S.mic.status === "listening") setMicStatusLine(COPY.micNudge);
+    }
+  }
+  function onFirstGesture() { unlockAudio(); }
+  function addGestureUnlock() {
+    ["pointerdown", "keydown", "touchstart"].forEach(function (ev) { window.addEventListener(ev, onFirstGesture, { passive: true }); });
+  }
+  function removeGestureUnlock() {
+    ["pointerdown", "keydown", "touchstart"].forEach(function (ev) { window.removeEventListener(ev, onFirstGesture); });
+  }
+
+  // ---- Verdict ----
+  var lastVerdictKey = "";
+  function setVerdict(state, title, sub, end) {
+    var key = state + "|" + title + "|" + sub + "|" + (end ? 1 : 0);
+    if (key === lastVerdictKey) return;
+    lastVerdictKey = key;
+    verdict.setAttribute("data-state", state);
+    verdictTitle.textContent = title;
+    if (end) { verdictSub.innerHTML = ""; var s = document.createElement("span"); s.className = "end-line"; s.textContent = sub; verdictSub.appendChild(s); }
+    else { verdictSub.textContent = sub; }
+  }
+  function showRetryCTA(show) { verdict.classList.toggle("show-action", !!show); }
+
+  function recomputeVerdict() {
+    if (globalBlocked) return;
+    var cam = S.camera.status, mic = S.mic.status, spk = S.speaker.status;
+    var camFail = !!ERROR_STATUSES[cam], micFail = !!ERROR_STATUSES[mic], spkFail = (spk === "fail");
+    var camPass = (cam === "pass"), micPass = (mic === "pass"), spkPass = (spk === "pass");
+    var failCount = (camFail ? 1 : 0) + (micFail ? 1 : 0) + (spkFail ? 1 : 0);
+
+    if (failCount >= 2) {
+      setVerdict("problem", "A couple of things need a look", "Fix the highlighted cards, then you're set");
+      showRetryCTA(camFail && micFail);
+      return;
+    }
+    if (failCount === 1) {
+      var which = camFail ? "camera" : (micFail ? "microphone" : "speaker");
+      setVerdict("problem", "Check your " + which, "Fix the highlighted card, then you're set");
+      showRetryCTA(false);
+      return;
+    }
+    // No failures
+    if (!camPass || !micPass) {
+      var sub = "Allow camera and microphone to start";
+      if (camPass && !micPass) sub = "Say something to test your mic";
+      else if (!camPass && micPass) sub = "Turning on your camera…";
+      setVerdict("checking", "Checking your setup…", sub);
+      showRetryCTA(false);
+      return;
+    }
+    // Camera + mic both pass
+    if (spkPass) setVerdict("good", "You're good to go", "Close this tab and join your call.", true);
+    else setVerdict("good", "You're good to go", "Confirm your speaker below");
+    showRetryCTA(false);
+  }
+
+  // ---- Camera ----
+  function attachCamera(track, stream) {
+    if (!track) { setCamError("nodevice"); return; }
+    stopTrack(S.camera.track);
+    S.camera.track = track; S.camera.stream = stream;
+    video.srcObject = stream;
+    var st = track.getSettings ? track.getSettings() : {};
+    if (st.deviceId) S.camera.deviceId = st.deviceId;
+    persist();
+    track.addEventListener("ended", function () {
+      if (S.camera.track === track) { setCamError("nodevice"); refreshDevices(); recomputeVerdict(); }
+    });
+    var passed = false;
+    var pass = function () {
+      if (passed) return;
+      if (video.videoWidth > 0 && video.videoHeight > 0) { passed = true; markCameraPass(track); }
+    };
+    video.onloadedmetadata = function () { var p = video.play(); if (p && p.catch) p.catch(function () {}); pass(); };
+    video.onplaying = pass;
+    if (video.readyState >= 1) pass();
+  }
+  function markCameraPass(track) {
+    S.camera.status = "pass"; applyCard(cameraCard, "pass");
+    var s = track.getSettings ? track.getSettings() : {};
+    var res = (s.width && s.height) ? (s.width + " × " + s.height) : "";
+    var fps = s.frameRate ? (" · " + Math.round(s.frameRate) + "fps") : "";
+    if (res) { resChip.textContent = res + fps; resChip.hidden = false; } else { resChip.hidden = true; }
+    setCameraStatusLine(COPY.cameraPass);
+    recomputeVerdict();
+  }
+  function setCamError(kind) {
+    S.camera.status = kind; applyCard(cameraCard, kind);
+    var f = CAM_FIX[kind] || CAM_FIX.error;
+    cameraFixMsg.textContent = f.msg;
+    setCameraStatusLine(f.status);
+    resChip.hidden = true;
+  }
+
+  // ---- Microphone ----
+  function teardownMicGraph() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    if (micSource) { try { micSource.disconnect(); } catch (e) {} }
+    micSource = null; analyser = null; displayLevel = 0;
+    renderMeter(0);
+  }
+  function attachMic(track, stream) {
+    if (!track) { setMicError("nodevice"); return; }
+    teardownMicGraph();
+    stopTrack(S.mic.track);
+    S.mic.track = track; S.mic.stream = stream;
+    var st = track.getSettings ? track.getSettings() : {};
+    if (st.deviceId) S.mic.deviceId = st.deviceId;
+    persist();
+    track.addEventListener("ended", function () {
+      if (S.mic.track === track) { setMicError("nodevice"); refreshDevices(); recomputeVerdict(); }
+    });
+    ensureCtx();
+    if (!audioCtx) { S.mic.status = "error"; applyCard(micCard, "error"); micFixMsg.textContent = MIC_FIX.error.msg; return; }
+    resumeCtx();
+    try {
+      micSource = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.5;
+      micSource.connect(analyser);
+      micData = new Uint8Array(analyser.fftSize);
+    } catch (e) { setMicError("error"); return; }
+    S.mic.status = S.mic.passed ? "pass" : "listening";
+    applyCard(micCard, S.mic.status);
+    setMicStatusLine(S.mic.passed ? COPY.micPass : COPY.micNudge);
+    enableRecord(true);
+    startMeter();
+    // Autoplay policy: a context built without a page gesture starts 'suspended',
+    // so the analyser reads silence. Surface a one-tap affordance to unlock it;
+    // any page interaction (incl. this button) resumes it and the meter goes live.
+    if (audioCtx.state !== "running") { micCard.classList.add("needs-gesture"); addGestureUnlock(); }
+    else { micCard.classList.remove("needs-gesture"); }
+    recomputeVerdict();
+  }
+  function setMicError(kind) {
+    teardownMicGraph();
+    discardRecorder();
+    enableRecord(false);
+    S.mic.status = kind; applyCard(micCard, kind);
+    var f = MIC_FIX[kind] || MIC_FIX.error;
+    micFixMsg.textContent = f.msg;
+    setMicStatusLine(f.status);
+  }
+  function startMeter() {
+    if (rafId) cancelAnimationFrame(rafId);
+    var loop = function () {
+      if (!analyser) { rafId = 0; return; }
+      analyser.getByteTimeDomainData(micData);
+      var sum = 0, len = micData.length;
+      for (var i = 0; i < len; i++) { var v = (micData[i] - 128) / 128; sum += v * v; }
+      var rms = Math.sqrt(sum / len);
+      var norm = rms / MIC_SCALE; if (norm > 1) norm = 1;
+      displayLevel = norm > displayLevel ? norm : (displayLevel * 0.86 + norm * 0.14);
+      renderMeter(displayLevel);
+      if (!S.mic.passed && rms > MIC_PASS_RMS) {
+        S.mic.passed = true; S.mic.status = "pass"; applyCard(micCard, "pass");
+        setMicStatusLine(COPY.micPass); recomputeVerdict();
+      }
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+  }
+  function renderMeter(level) {
+    var lit = Math.round(level * BAR_COUNT);
+    for (var i = 0; i < BAR_COUNT; i++) {
+      var on = i < lit;
+      var b = bars[i];
+      if (b._on !== on) { b.classList.toggle("lit", on); b._on = on; }
+    }
+  }
+  function buildMeter() {
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < BAR_COUNT; i++) {
+      var b = document.createElement("span");
+      b.className = "bar" + (i >= 20 ? " hot" : "");
+      b._on = false;
+      bars.push(b); frag.appendChild(b);
+    }
+    meterEl.appendChild(frag);
+  }
+
+  // ---- Speaker: media player ----
+  function setSpeakerStatus(status) {
+    S.speaker.status = status; applyCard(speakerCard, status);
+    recomputeVerdict();
+  }
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.floor(sec || 0));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function setPlayIcon(playing) {
+    playPauseBtn.classList.toggle("is-playing", !!playing);
+    playPauseBtn.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+  function getDur() {
+    var d = speakerAudio.duration;
+    if (isFinite(d) && d > 0) return d;
+    return knownDur > 0 ? knownDur : 0;
+  }
+  function applySink() {
+    if (supportsSinkId && S.speaker.deviceId && speakerAudio.setSinkId) {
+      try { speakerAudio.setSinkId(S.speaker.deviceId).catch(function () {}); } catch (e) {}
+    }
+  }
+  function playAudio() {
+    unlockAudio(); applySink();
+    var p = speakerAudio.play();
+    if (p && p.catch) p.catch(function () {});
+  }
+  function togglePlay() {
+    if (speakerAudio.paused) {
+      var d = getDur();
+      if (d > 0 && speakerAudio.currentTime >= d - 0.05) { try { speakerAudio.currentTime = 0; } catch (e) {} }
+      playAudio();
+    } else { speakerAudio.pause(); }
+  }
+  function restartAudio() { try { speakerAudio.currentTime = 0; } catch (e) {} playAudio(); }
+
+  function onSeekInput() {
+    var d = getDur();
+    seeking = true;
+    if (d > 0) {
+      var t = (Number(seek.value) / 1000) * d;
+      timeCur.textContent = fmtClock(t);
+      try { speakerAudio.currentTime = t; } catch (e) {}
+    }
+  }
+  function onTimeUpdate() {
+    var d = getDur(), c = speakerAudio.currentTime || 0;
+    timeCur.textContent = fmtClock(c);
+    if (!seeking && d > 0) seek.value = String(Math.max(0, Math.min(1000, Math.round((c / d) * 1000))));
+  }
+  function onLoadedMeta() {
+    var d = speakerAudio.duration;
+    if (isFinite(d) && d > 0) { knownDur = d; timeDur.textContent = fmtClock(d); }
+    else if (S.speaker.source === "rec" && recDuration > 0) { knownDur = recDuration; timeDur.textContent = fmtClock(recDuration); }
+  }
+
+  function selectSource(src, autoplay) {
+    if (src === "rec" && !recUrl) src = "tone";
+    S.speaker.source = src;
+    srcTone.setAttribute("data-active", src === "tone" ? "true" : "false");
+    srcTone.setAttribute("aria-pressed", src === "tone" ? "true" : "false");
+    srcRec.setAttribute("data-active", src === "rec" ? "true" : "false");
+    srcRec.setAttribute("aria-pressed", src === "rec" ? "true" : "false");
+    var url = (src === "rec") ? recUrl : toneUrl;
+    knownDur = (src === "rec") ? recDuration : 0;
+    timeCur.textContent = "0:00";
+    timeDur.textContent = knownDur ? fmtClock(knownDur) : "0:00";
+    seek.value = "0";
+    if (!url) return;
+    try { speakerAudio.src = url; speakerAudio.load(); } catch (e) {}
+    applySink();
+    if (autoplay) playAudio();
+  }
+
+  // Build a short, pleasant stereo test tone as a real WAV so the player has a
+  // seekable timeline (a synthesized Web-Audio chime has no duration to scrub).
+  function makeToneWav() {
+    var sr = 44100, dur = 4.0, n = Math.floor(sr * dur), ch = 2;
+    var inter = new Float32Array(n * ch);
+    var notes = [523.25, 659.25, 783.99, 1046.5]; // C5 E5 G5 C6
+    var noteDur = dur / notes.length;
+    for (var i = 0; i < n; i++) {
+      var t = i / sr;
+      var idx = Math.min(notes.length - 1, Math.floor(t / noteDur));
+      var lt = t - idx * noteDur;
+      var env = Math.min(1, lt / 0.015) * Math.exp(-lt * 2.4);
+      var f = notes[idx];
+      var s = Math.sin(2 * Math.PI * f * t) * 0.28 + Math.sin(2 * Math.PI * f * 1.5 * t) * 0.06;
+      s *= env;
+      var even = (idx % 2 === 0);
+      inter[i * 2] = s * (even ? 1.0 : 0.4);
+      inter[i * 2 + 1] = s * (even ? 0.4 : 1.0);
+    }
+    return encodeWav(inter, sr, ch);
+  }
+  function encodeWav(samples, sr, ch) {
+    var n = samples.length;
+    var buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+    function str(off, s) { for (var i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); }
+    str(0, "RIFF"); dv.setUint32(4, 36 + n * 2, true); str(8, "WAVE");
+    str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, ch, true);
+    dv.setUint32(24, sr, true); dv.setUint32(28, sr * ch * 2, true); dv.setUint16(32, ch * 2, true); dv.setUint16(34, 16, true);
+    str(36, "data"); dv.setUint32(40, n * 2, true);
+    var off = 44;
+    for (var i = 0; i < n; i++) {
+      var v = samples[i]; v = v < -1 ? -1 : (v > 1 ? 1 : v);
+      dv.setInt16(off, v < 0 ? v * 0x8000 : v * 0x7FFF, true); off += 2;
+    }
+    return new Blob([buf], { type: "audio/wav" });
+  }
+
+  // ---- Voice recording (mic -> playback) ----
+  function pickRecMime() {
+    var opts = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus", "audio/ogg"];
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+      for (var i = 0; i < opts.length; i++) { if (MediaRecorder.isTypeSupported(opts[i])) return opts[i]; }
+    }
+    return "";
+  }
+  function enableRecord(on) {
+    if (!supportsRecording) return;
+    recordBtn.disabled = !on;
+  }
+  function updateRecordUI(on) {
+    recordBtn.classList.toggle("recording", !!on);
+    if (on) { recordBtn.setAttribute("aria-label", "Stop recording"); }
+    else { recordLabel.textContent = "Record my voice"; recordBtn.setAttribute("aria-label", "Record my voice"); }
+  }
+  function recordUnsupported() {
+    recording = false;
+    if (recInterval) { clearInterval(recInterval); recInterval = 0; }
+    updateRecordUI(false);
+    if (micRecordRow) micRecordRow.style.display = "none";
+    if (srcRec) srcRec.style.display = "none";
+  }
+  function toggleRecord() {
+    if (recording) stopRecording();
+    else startRecording();
+  }
+  function startRecording() {
+    if (recording) return;
+    if (!supportsRecording || !S.mic.stream) { setMicStatusLine("Microphone isn't ready to record yet"); return; }
+    unlockAudio();
+    var mime = pickRecMime();
+    try { mediaRecorder = mime ? new MediaRecorder(S.mic.stream, { mimeType: mime }) : new MediaRecorder(S.mic.stream); }
+    catch (e) { try { mediaRecorder = new MediaRecorder(S.mic.stream); } catch (e2) { recordUnsupported(); return; } }
+    recChunks = []; recDiscarded = false;
+    mediaRecorder.ondataavailable = function (e) { if (recDiscarded) return; if (e.data && e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = finalizeRecording;
+    mediaRecorder.onerror = function () { recording = false; if (recInterval) { clearInterval(recInterval); recInterval = 0; } updateRecordUI(false); };
+    try { mediaRecorder.start(); } catch (e) { recordUnsupported(); return; }
+    recording = true; recStartTs = Date.now();
+    updateRecordUI(true);
+    setMicStatusLine("Recording… speak now");
+    recInterval = setInterval(function () {
+      var ms = Date.now() - recStartTs;
+      recordLabel.textContent = "Stop · " + fmtClock(ms / 1000);
+      if (ms >= REC_MAX_MS) stopRecording();
+    }, 200);
+  }
+  function stopRecording() {
+    // User-initiated stop (Stop button / max-duration): lets onstop -> finalize run.
+    if (mediaRecorder && mediaRecorder.state !== "inactive") { try { mediaRecorder.stop(); } catch (e) {} }
+    if (recInterval) { clearInterval(recInterval); recInterval = 0; }
+  }
+  function discardRecorder() {
+    // Abort path (teardown / device switch / mic error): the recorder's final
+    // 'dataavailable' + 'stop' fire on LATER tasks. Detach handlers and flag a
+    // discard so a late event can't resurrect a stale clip over a fresh test.
+    recDiscarded = true;
+    if (recInterval) { clearInterval(recInterval); recInterval = 0; }
+    if (mediaRecorder) {
+      try { mediaRecorder.ondataavailable = null; mediaRecorder.onstop = null; mediaRecorder.onerror = null; } catch (e) {}
+      if (mediaRecorder.state !== "inactive") { try { mediaRecorder.stop(); } catch (e) {} }
+      mediaRecorder = null;
+    }
+    recording = false;
+    updateRecordUI(false);
+  }
+  function finalizeRecording() {
+    if (recDiscarded) { recording = false; if (recInterval) { clearInterval(recInterval); recInterval = 0; } return; }
+    var ms = Date.now() - recStartTs;
+    recording = false;
+    if (recInterval) { clearInterval(recInterval); recInterval = 0; }
+    updateRecordUI(false);
+    if (!recChunks.length) { setMicStatusLine("Didn't catch that — try recording again"); return; }
+    recDuration = ms / 1000;
+    recBlob = new Blob(recChunks, { type: (mediaRecorder && mediaRecorder.mimeType) || "audio/webm" });
+    if (recUrl) URL.revokeObjectURL(recUrl);
+    recUrl = URL.createObjectURL(recBlob);
+    srcRec.disabled = false;
+    setMicStatusLine("Recording ready — playing it back");
+    selectSource("rec", true);
+  }
+  function clearRecording() {
+    discardRecorder();
+    if (recUrl) { URL.revokeObjectURL(recUrl); recUrl = null; }
+    recBlob = null; recDuration = 0; recChunks = [];
+    if (srcRec) { srcRec.disabled = true; srcRec.setAttribute("data-active", "false"); srcRec.setAttribute("aria-pressed", "false"); }
+    updateRecordUI(false);
+  }
+
+  function resetSpeaker() {
+    try { speakerAudio.pause(); } catch (e) {}
+    try { speakerAudio.currentTime = 0; } catch (e) {}
+    hasPlayed = false; speakerCard.classList.remove("has-played");
+    seek.value = "0"; timeCur.textContent = "0:00";
+    clearRecording();
+    selectSource("tone", false);
+    S.speaker.status = "ready"; applyCard(speakerCard, "ready");
+    setSpeakerStatusLine(COPY.speakerReady);
+  }
+
+  function initPlayer() {
+    try { toneUrl = URL.createObjectURL(makeToneWav()); } catch (e) { toneUrl = null; }
+    if (!supportsRecording) { if (micRecordRow) micRecordRow.style.display = "none"; if (srcRec) srcRec.style.display = "none"; }
+
+    playPauseBtn.addEventListener("click", togglePlay);
+    restartSpBtn.addEventListener("click", restartAudio);
+    seek.addEventListener("input", onSeekInput);
+    seek.addEventListener("change", function () { seeking = false; });
+    speakerAudio.addEventListener("play", function () { setPlayIcon(true); if (!hasPlayed) { hasPlayed = true; speakerCard.classList.add("has-played"); } });
+    speakerAudio.addEventListener("pause", function () { setPlayIcon(false); });
+    speakerAudio.addEventListener("ended", function () { setPlayIcon(false); seek.value = "1000"; timeCur.textContent = timeDur.textContent; });
+    speakerAudio.addEventListener("timeupdate", onTimeUpdate);
+    speakerAudio.addEventListener("loadedmetadata", onLoadedMeta);
+    speakerAudio.addEventListener("durationchange", onLoadedMeta);
+    srcTone.addEventListener("click", function () { selectSource("tone", true); });
+    srcRec.addEventListener("click", function () { if (recUrl) selectSource("rec", true); });
+    pcYes.addEventListener("click", function () { setSpeakerStatus("pass"); setSpeakerStatusLine(COPY.speakerPass); });
+    pcNo.addEventListener("click", function () { setSpeakerStatus("fail"); setSpeakerStatusLine("Speaker needs attention"); });
+    recordBtn.addEventListener("click", toggleRecord);
+
+    selectSource("tone", false);
+  }
+
+  // ---- Device pickers ----
+  function fillSelect(sel, list, currentId, fallback) {
+    sel.innerHTML = "";
+    for (var i = 0; i < list.length; i++) {
+      var o = document.createElement("option");
+      o.value = list[i].deviceId;
+      o.textContent = list[i].label || (fallback + " " + (i + 1));
+      sel.appendChild(o);
+    }
+    var has = false;
+    if (currentId) { for (var j = 0; j < list.length; j++) { if (list[j].deviceId === currentId) { has = true; break; } } }
+    if (has) sel.value = currentId;
+    sel.disabled = list.length === 0;
+    if (list.length === 0) { var e = document.createElement("option"); e.textContent = fallback; sel.appendChild(e); }
+  }
+  function refreshDevices() {
+    if (!mediaOK || !navigator.mediaDevices.enumerateDevices) return Promise.resolve();
+    return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+      var cams = [], mics = [], outs = [];
+      for (var i = 0; i < devices.length; i++) {
+        if (devices[i].kind === "videoinput") cams.push(devices[i]);
+        else if (devices[i].kind === "audioinput") mics.push(devices[i]);
+        else if (devices[i].kind === "audiooutput") outs.push(devices[i]);
+      }
+      fillSelect(cameraSelect, cams, S.camera.deviceId, "Camera");
+      fillSelect(micSelect, mics, S.mic.deviceId, "Microphone");
+      if (supportsSinkId) {
+        fillSelect(speakerSelect, outs, S.speaker.deviceId, "Speaker");
+        speakerSelect.parentNode.style.display = outs.length ? "" : "none";
+      }
+    }).catch(function () {});
+  }
+
+  // ---- Single-device (re)start ----
+  function startCamera(deviceId) {
+    S.camera.status = "checking"; applyCard(cameraCard, "checking");
+    setCameraStatusLine(COPY.cameraChecking); resChip.hidden = true; recomputeVerdict();
+    var vc = deviceId ? { deviceId: { exact: deviceId } } : true;
+    gUM({ video: vc, audio: false })
+      .catch(function (e) {
+        if (deviceId && e && e.name === "OverconstrainedError") return gUM({ video: true, audio: false });
+        throw e;
+      })
+      .then(function (stream) { attachCamera(stream.getVideoTracks()[0], stream); return refreshDevices(); })
+      .catch(function (e) { setCamError(classify(e)); })
+      .then(function () { recomputeVerdict(); });
+  }
+  function startMic(deviceId) {
+    discardRecorder(); // drop any in-progress recording of the outgoing mic
+    S.mic.status = "checking"; applyCard(micCard, "checking");
+    setMicStatusLine(COPY.micNudge); recomputeVerdict();
+    var ac = deviceId ? { deviceId: { exact: deviceId } } : true;
+    gUM({ audio: ac, video: false })
+      .catch(function (e) {
+        if (deviceId && e && e.name === "OverconstrainedError") return gUM({ audio: true, video: false });
+        throw e;
+      })
+      .then(function (stream) { attachMic(stream.getAudioTracks()[0], stream); return refreshDevices(); })
+      .catch(function (e) { setMicError(classify(e)); })
+      .then(function () { recomputeVerdict(); });
+  }
+
+  // ---- Combined acquisition (first run) ----
+  function acquirePerKind() {
+    var camConstraint = S.camera.deviceId ? { deviceId: { ideal: S.camera.deviceId } } : true;
+    var micConstraint = S.mic.deviceId ? { deviceId: { ideal: S.mic.deviceId } } : true;
+    return gUM({ video: camConstraint }).then(function (vs) {
+      attachCamera(vs.getVideoTracks()[0], vs);
+    }).catch(function (e) { setCamError(classify(e)); })
+    .then(function () {
+      return gUM({ audio: micConstraint }).then(function (as) {
+        attachMic(as.getAudioTracks()[0], as);
+      }).catch(function (e) { setMicError(classify(e)); });
+    })
+    .then(function () { return refreshDevices(); });
+  }
+  function acquireMedia() {
+    var camConstraint = S.camera.deviceId ? { deviceId: { ideal: S.camera.deviceId } } : true;
+    var micConstraint = S.mic.deviceId ? { deviceId: { ideal: S.mic.deviceId } } : true;
+    return gUM({ video: camConstraint, audio: micConstraint })
+      .then(function (stream) {
+        var vt = stream.getVideoTracks()[0];
+        var at = stream.getAudioTracks()[0];
+        if (vt) attachCamera(vt, new MediaStream([vt])); else setCamError("nodevice");
+        if (at) attachMic(at, new MediaStream([at])); else setMicError("nodevice");
+        return refreshDevices();
+      })
+      .catch(function () {
+        // Combined getUserMedia is all-or-nothing: a camera-only denial (iOS Safari,
+        // split MDM/site permissions) rejects the whole call. Re-request each kind
+        // independently so a still-available mic isn't falsely reported as blocked.
+        // On a true deny-all, both per-kind calls reject and both correctly show blocked.
+        return acquirePerKind();
+      })
+      .then(function () { recomputeVerdict(); });
+  }
+
+  // ---- Full run / teardown ----
+  function runFullTest() {
+    S.camera.status = "checking"; S.mic.status = "checking"; S.mic.passed = false;
+    applyCard(cameraCard, "checking"); applyCard(micCard, "checking");
+    micCard.classList.remove("needs-gesture");
+    setCameraStatusLine(COPY.cameraChecking); setMicStatusLine(COPY.micNudge);
+    resChip.hidden = true;
+    enableRecord(false);
+    resetSpeaker();
+    showRetryCTA(false);
+    recomputeVerdict();
+    acquireMedia();
+  }
+  function stopAll() {
+    discardRecorder(); enableRecord(false);
+    stopTrack(S.camera.track); S.camera.track = null; S.camera.stream = null; video.srcObject = null;
+    teardownMicGraph(); stopTrack(S.mic.track); S.mic.track = null; S.mic.stream = null; S.mic.passed = false;
+    try { speakerAudio.pause(); } catch (e) {}
+  }
+
+  // ---- Persistence (device IDs only) ----
+  function persist() {
+    try { localStorage.setItem("greenlight.devices", JSON.stringify({ c: S.camera.deviceId, m: S.mic.deviceId, s: S.speaker.deviceId })); } catch (e) {}
+  }
+  function loadPersisted() {
+    try {
+      var d = JSON.parse(localStorage.getItem("greenlight.devices") || "{}");
+      S.camera.deviceId = d.c || null; S.mic.deviceId = d.m || null; S.speaker.deviceId = d.s || null;
+    } catch (e) {}
+  }
+
+  // ---- Global insecure / unsupported ----
+  function showGlobal(title, body) {
+    globalBlocked = true;
+    setVerdict("problem", title, "Then reload this page");
+    verdict.classList.remove("show-action");
+    grid.hidden = true; appFoot.hidden = true; globalMsg.hidden = false;
+    if (title) globalMsgTitle.textContent = title;
+    if (body) globalMsgBody.innerHTML = body;
+  }
+
+  // ---- Wire events ----
+  function wire() {
+    verdictAction.addEventListener("click", function () { unlockAudio(); stopAll(); runFullTest(); });
+    restartBtn.addEventListener("click", function () { unlockAudio(); stopAll(); runFullTest(); });
+
+    cameraRetry.addEventListener("click", function () { startCamera(S.camera.deviceId || null); });
+    micRetry.addEventListener("click", function () { S.mic.passed = false; startMic(S.mic.deviceId || null); });
+
+    cameraSelect.addEventListener("change", function () { if (cameraSelect.value) startCamera(cameraSelect.value); });
+    micSelect.addEventListener("change", function () { if (micSelect.value) { S.mic.passed = false; startMic(micSelect.value); } });
+    speakerSelect.addEventListener("change", function () { S.speaker.deviceId = speakerSelect.value; persist(); applySink(); playAudio(); });
+
+    micArm.addEventListener("click", unlockAudio);
+
+    // Resume a suspended AudioContext on the first page interaction (autoplay policy).
+    addGestureUnlock();
+
+    if (mediaOK && navigator.mediaDevices.addEventListener) {
+      try { navigator.mediaDevices.addEventListener("devicechange", function () { refreshDevices(); }); } catch (e) {}
+    }
+    window.addEventListener("pagehide", function () {
+      stopAll();
+      if (recUrl) URL.revokeObjectURL(recUrl);
+      if (toneUrl) URL.revokeObjectURL(toneUrl);
+      if (audioCtx) { try { audioCtx.close(); } catch (e) {} }
+    });
+  }
+
+  // ---- Init ----
+  function init() {
+    buildMeter();
+    initPlayer();
+    wire();
+    loadPersisted();
+    enableRecord(false);
+
+    if (!supportsSinkId) { speakerSelect.parentNode.style.display = "none"; speakerNote.hidden = false; }
+
+    if (window.isSecureContext === false || !mediaOK) {
+      showGlobal("Testing needs a secure connection",
+        "Open this page over <code>https://</code> (or on <code>localhost</code>) so your browser will allow camera and microphone access.");
+      return;
+    }
+    runFullTest();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
+</script>
+</body>
+</html>
