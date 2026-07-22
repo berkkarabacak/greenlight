@@ -1,10 +1,10 @@
-# GreenLight — test your mic, speaker & camera
+# Ready Check — test your mic, speaker & camera
 
 A tiny, self-contained web app to check that your **microphone, speakers and
 camera** work — right in the browser, before a call. No install, no accounts,
 nothing leaves your device: all capture and playback happen locally in the page.
 
-**Live:** https://berkkarabacak.com/greenlight/
+**Live:** https://berkkarabacak.com/readycheck/
 
 ## What it does
 
